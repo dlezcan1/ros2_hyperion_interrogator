@@ -6,16 +6,13 @@ from std_msgs.msg import Float64MultiArray, MultiArrayDimension
 
 import asyncio
 import numpy as np
-from hyperion import AsyncHyperion
+from .hyperion import Hyperion, AsyncHyperion
 
 
 class HyperionPublisher(Node):
     def __init__(self):
         super().__init__('HyperionPublisher')
         
-        # setup the publishers
-        self.instantiate_publishers()
-    
         # Hyperion parameters
         self.ip_address = '10.0.0.5' # default value
         self.get_params()
@@ -23,11 +20,31 @@ class HyperionPublisher(Node):
         # connect to Hyperion Interrogator
         self.connect()
         
+        # setup the publishers
+        self.instantiate_publishers()
+        
+        # setup the publisher callback
+        timer_period = 0.001
+        self.timer = self.create_timer(timer_period, self.publish_peaks)
+        
+        
     # __init__
     
     def connect(self):
         ''' (Re)Instantiate the Hyperion interrogator'''
-        self.interrogator = AsyncHyperion(self.ip_address)
+        # self.interrogator = AsyncHyperion(self.ip_address)
+        self.interrogator = Hyperion(self.ip_address)
+        
+        try:
+            self.interrogator.is_ready
+            self.is_connected = True
+            
+        # try
+        except OSError:
+            self.get_logger.error("Interrogator is not configured to a proper IP address")
+            self.is_connected = False
+            
+        # except
         
     # connect
     
@@ -35,12 +52,13 @@ class HyperionPublisher(Node):
         ''' Read in parameters for the Hyperion interrogator '''
         # Hyperion parameter names to get
         ip_param_name = 'interrogator/ip_address'
-        num_ch_param_name = 'num_channels'
-        num_aa_param_name = 'num_active_areas'
+        # num_ch_param_name = 'num_channels'
+        # num_aa_param_name = 'num_active_areas'
         
         # Hyperion IP address
         if self.has_parameter(ip_param_name):
             self.ip_address = self.get_paramater(ip_param_name).get_paramater_value()
+            self.get_logger().log("Connecting to IP: {}".format(self.ip_address))
         
         # if
         
@@ -51,41 +69,132 @@ class HyperionPublisher(Node):
                                         
         # else
         
-        # Number of channels
-        try:
-            self.num_ch = self.get_paramater(num_ch_param_name).get_paramater_value()
+        # # Number of channels
+        # try:
+            # self.num_ch = self.get_paramater(num_ch_param_name).get_paramater_value()
 
-        # try
-        except:
-            self.get_logger().error(("Number of channels param not set, "
-                                     "'{}/{}'.").format(self.get_name(), num_ch_param_name))
+        # # try
+        # except:
+            # self.get_logger().error(("Number of channels param not set, "
+                                     # "'{}/{}'.").format(self.get_name(), num_ch_param_name))
 
-        # except
+        # # except
         
-        # Number of active areas
-        try:
-            self.num_aa = self.get_paramater(num_aa_param_name).get_paramater_value()
+        # # Number of active areas
+        # try:
+            # self.num_aa = self.get_paramater(num_aa_param_name).get_paramater_value()
 
-        # try
-        except:
-            self.get_logger().error(("Number of a param not set, "
-                                     "'{}/{}'.").format(self.get_name(), num_aa_param_name))
+        # # try
+        # except:
+            # self.get_logger().error(("Number of a param not set, "
+                                     # "'{}/{}'.").format(self.get_name(), num_aa_param_name))
 
-        # except
+        # # except
         
         
     # get_params
     
     def instantiate_publishers(self):
         ''' Method to instantiate the publishers for the class'''
-        # raw sensor data
-        self.signal_pub      = self.create_publisher(Float64MultiArray, 'sensor/raw', 10)
-        self.get_logger().info('Publishing signals.')
         
-        # processed sensor data
-        self.proc_signal_pub = self.create_publisher(Float64MultiArray, 'sensor/processed', 10)
-        self.get_logger().info('Publishing processed signals.')
+        self.signal_pubs = {}
+        topic_raw = 'sensor/CH{:d}/raw'
+        topic_proc = 'sensor/CH{:d}/processd'
+        for idx in range(1, self.interrogator.channel_count+1):
+            ch_pub = {}
+            ch_pub['raw'] = self.create_publisher(Float64MultiArray, topic_raw.format(idx), 10)
+            ch_pub['processed'] = self.create_publisher(Float64MultiArray, topic_proc.format(idx), 10)
+            self.signal_pubs[idx] = ch_pub
+            
+        # idx
+        
+        self.get_logger().info('Publishing raw and processed signals.')
         
     # instantiate_publishers
     
+    def parse_peaks(self, peak_data):
+        ''' Parse the peak data into a dict'''
+        
+        data = {}
+        for idx in range(1, self.interrogator.channel_count+1):
+            data[idx] = peak_data[idx].astype(np.float64)
+            
+        # for
+        
+        return data
+        
+    # parse_peaks
+    
+    def process_signals(self, raw_signals):
+        ''' Method to perform the signal processing
+        
+            This includes:
+                - Base wavelength shifting
+                - Temperature compensation (if set)
+        '''
+        pass
+        
+    # process_signals
+    
+    def publish_peaks(self):
+        ''' Publish the peaks on an timer '''
+        
+        if self.is_connected and self.interrogator.is_ready:
+            peaks = parse_peaks(self.interrogator.peaks)
+            
+            for ch_num, data in peaks.items():
+                # grab the channel publishers
+                raw_pub = self.signal_pubs[ch_num]['raw']
+                proc_pub = self.signal_pubs[ch_num]['processed']
+                
+                # prepare the message
+                raw_msg = Float64MultiArray()
+                proc_msg = Float64MultiArray()
+                
+                raw_msg.stride = data.dtype.itemsize
+                raw_msg.size = data.size
+                raw_msg.data = data.flatten().tolist()
+                
+                proc_msg.stride = data.dtype.itemsize
+                proc_msg.size = data.size
+                proc_msg.data = data.flatten().tolist() # TODO: NEED TO DO ACTUAL PROCESSING
+            
+                # publish the messages
+                raw_pub.publish(raw_msg)
+                proc_pub.publish(proc_msg)
+                
+            # for
+        # if
+        
+        else:
+            pass
+            
+        # else
+        
+    # publish_peaks
+    
 # class: HyperionPublisher
+
+def main(args = None):
+    rclpy.init(args=args)
+    
+    hyperion_talker = HyperionPublisher()
+    
+    try:    
+        rclpy.spin(hyperion_talker)
+    
+    except KeyboardInterrupt: 
+        pass
+        
+        
+    # clean up
+    hyperion_talker.get_logger().info('{} shutting down...'.format(hyperion_talker.get_name()))
+    hyperion_talker.destroy_node()
+    rclpy.shutdown()
+    
+# main
+
+if __name__ == "__main__":
+    main()
+    
+# if: main

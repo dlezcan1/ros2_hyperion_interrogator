@@ -1,0 +1,3 @@
+interrogator:
+    ros_parameters:
+        ip_address: 10.0.0.5
