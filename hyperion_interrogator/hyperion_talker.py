@@ -6,7 +6,7 @@ from std_msgs.msg import Float64MultiArray, MultiArrayDimension
 
 import asyncio
 import numpy as np
-from .hyperion import Hyperion, AsyncHyperion
+from .hyperionlib.hyperion import Hyperion, AsyncHyperion
 
 
 class HyperionPublisher(Node):
