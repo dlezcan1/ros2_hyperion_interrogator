@@ -21,7 +21,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'hyperion_talker = hyperion_interrogator.hyperion_talker:main'
+            'hyperion_talker = hyperion_interrogator.hyperion_talker:main',
+            'reconnect = hyperion_interrogator.reconnect_client:main'
         ],
     },
 )

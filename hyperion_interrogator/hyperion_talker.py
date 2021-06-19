@@ -133,7 +133,7 @@ class HyperionPublisher(Node):
         self.connect()
         self.start_publishers()
         
-        response.success = True
+        response.success = self.is_connected
         
         if not self.is_connected:
             response.message = "{} is not a valid IP for the Hyperion interrogator".format(self.ip_address)
