@@ -11,10 +11,14 @@ from .hyperionlib.hyperion import Hyperion, AsyncHyperion
 
 
 class HyperionPublisher(Node):
+    # PARAMETER NAMES
+    ip_param_name = 'interrogator/ip_address'
+        
     def __init__(self):
         super().__init__('HyperionPublisher')
         
         # Hyperion parameters
+        self.declare_parameter(HyperionPublisher.ip_param_name, '10.0.0.5')
         self.get_params()
         
         # connect to Hyperion Interrogator
@@ -22,6 +26,8 @@ class HyperionPublisher(Node):
         
         # setup the publishers
         self.instantiate_publishers()
+        
+        # setup services TODO
         
         # setup the publisher callback
         timer_period = 0.001
@@ -41,7 +47,7 @@ class HyperionPublisher(Node):
             
         # try
         except OSError:
-            self.get_logger.warning("Interrogator is not configured to a proper IP address")
+            self.get_logger().warning("Interrogator is not configured to a proper IP address")
             self.is_connected = False
             
         # except
@@ -50,33 +56,37 @@ class HyperionPublisher(Node):
     
     def get_params(self):
         ''' Read in parameters for the Hyperion interrogator '''
-        # Hyperion parameter names to get
-        ip_param_name = 'interrogator/ip_address'
-        
-        self.declare_parameter(ip_param_name, '10.0.0.5')
-        
         # Hyperion IP address
         
-        self.ip_address = self.get_paramater(ip_param_name).get_paramater_value()
-        self.get_logger().log("Connecting to IP: {}".format(self.ip_address))        
+        self.ip_address = self.get_parameter(HyperionPublisher.ip_param_name).get_parameter_value().string_value
+        self.get_logger().info("Connecting to IP: {}".format(self.ip_address))        
         
     # get_params
     
     def instantiate_publishers(self):
         ''' Method to instantiate the publishers for the class'''
         
-        self.signal_pubs = {}
-        topic_raw = 'sensor/CH{:d}/raw'
-        topic_proc = 'sensor/CH{:d}/processd'
-        for idx in range(1, self.interrogator.channel_count+1):
-            ch_pub = {}
-            ch_pub['raw'] = self.create_publisher(Float64MultiArray, topic_raw.format(idx), 10)
-            ch_pub['processed'] = self.create_publisher(Float64MultiArray, topic_proc.format(idx), 10)
-            self.signal_pubs[idx] = ch_pub
-            
-        # idx
         
-        self.get_logger().info('Publishing raw and processed signals.')
+        if self.is_connected:
+            self.signal_pubs = {}
+            topic_raw = 'sensor/CH{:d}/raw'
+            topic_proc = 'sensor/CH{:d}/processd'
+            for idx in range(1, self.interrogator.channel_count+1):
+                ch_pub = {}
+                ch_pub['raw'] = self.create_publisher(Float64MultiArray, topic_raw.format(idx), 10)
+                ch_pub['processed'] = self.create_publisher(Float64MultiArray, topic_proc.format(idx), 10)
+                self.signal_pubs[idx] = ch_pub
+                
+            # idx
+            
+            self.get_logger().info('Publishing raw and processed signals.')
+            
+        # if
+        
+        else:
+            self.get_logger().warning("FBG Publishers not configured since interrogator not connected.")
+            
+        # else
         
     # instantiate_publishers
     
@@ -140,6 +150,22 @@ class HyperionPublisher(Node):
         # else
         
     # publish_peaks
+    
+    def reconnect_service(self, request, response):
+        ''' reconnect to the IP address '''
+        self.get_params()
+        self.connect()
+        self.instantiate_publishers()
+        
+        response.success = True
+        
+        if not self.is_connected:
+            response.message = "{} is not a valid IP for the Hyperion interrogator".format(self.ip_address)
+            
+        # if
+        
+        return response
+    # reconnect_service
     
 # class: HyperionPublisher
 
