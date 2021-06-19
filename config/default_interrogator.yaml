@@ -1,3 +1,3 @@
-interrogator:
-    ros_parameters:
-        ip_address: 10.0.0.5
+HyperionPublisher:
+    ros__parameters:
+        interrogator/ip_address: 10.0.0.5

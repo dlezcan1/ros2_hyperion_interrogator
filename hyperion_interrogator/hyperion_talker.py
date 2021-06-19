@@ -3,6 +3,7 @@ from rclpy.node import Node
 from rclpy.exceptions import ParameterNotDeclaredException
 
 from std_msgs.msg import Float64MultiArray, MultiArrayDimension
+from std_srvs.srv import Trigger
 
 import asyncio
 import numpy as np
@@ -14,7 +15,6 @@ class HyperionPublisher(Node):
         super().__init__('HyperionPublisher')
         
         # Hyperion parameters
-        self.ip_address = '10.0.0.5' # default value
         self.get_params()
         
         # connect to Hyperion Interrogator
@@ -41,7 +41,7 @@ class HyperionPublisher(Node):
             
         # try
         except OSError:
-            self.get_logger.error("Interrogator is not configured to a proper IP address")
+            self.get_logger.warning("Interrogator is not configured to a proper IP address")
             self.is_connected = False
             
         # except
@@ -52,45 +52,13 @@ class HyperionPublisher(Node):
         ''' Read in parameters for the Hyperion interrogator '''
         # Hyperion parameter names to get
         ip_param_name = 'interrogator/ip_address'
-        # num_ch_param_name = 'num_channels'
-        # num_aa_param_name = 'num_active_areas'
+        
+        self.declare_parameter(ip_param_name, '10.0.0.5')
         
         # Hyperion IP address
-        if self.has_parameter(ip_param_name):
-            self.ip_address = self.get_paramater(ip_param_name).get_paramater_value()
-            self.get_logger().log("Connecting to IP: {}".format(self.ip_address))
         
-        # if
-        
-        else:
-            self.get_logger().warning(("Interrogators IP address parameter, "
-                                       "'{}/{}' not set. Using default IP address: "
-                                       "{}").format(self.get_name(), ip_param_name, self.ip_address))
-                                        
-        # else
-        
-        # # Number of channels
-        # try:
-            # self.num_ch = self.get_paramater(num_ch_param_name).get_paramater_value()
-
-        # # try
-        # except:
-            # self.get_logger().error(("Number of channels param not set, "
-                                     # "'{}/{}'.").format(self.get_name(), num_ch_param_name))
-
-        # # except
-        
-        # # Number of active areas
-        # try:
-            # self.num_aa = self.get_paramater(num_aa_param_name).get_paramater_value()
-
-        # # try
-        # except:
-            # self.get_logger().error(("Number of a param not set, "
-                                     # "'{}/{}'.").format(self.get_name(), num_aa_param_name))
-
-        # # except
-        
+        self.ip_address = self.get_paramater(ip_param_name).get_paramater_value()
+        self.get_logger().log("Connecting to IP: {}".format(self.ip_address))        
         
     # get_params
     
