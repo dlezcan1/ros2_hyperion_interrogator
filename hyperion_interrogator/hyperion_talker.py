@@ -15,7 +15,7 @@ class HyperionPublisher(Node):
     ip_param_name = 'interrogator/ip_address'
         
     def __init__(self):
-        super().__init__('HyperionPublisher')
+        super().__init__('Hyperion')
         
         # Hyperion parameters
         self.declare_parameter(HyperionPublisher.ip_param_name, '10.0.0.5')
@@ -25,9 +25,10 @@ class HyperionPublisher(Node):
         self.connect()
         
         # setup the publishers
-        self.instantiate_publishers()
+        self.start_publishers()
         
         # setup services TODO
+        self.start_services()
         
         # setup the publisher callback
         timer_period = 0.001
@@ -44,6 +45,7 @@ class HyperionPublisher(Node):
         try:
             self.interrogator.is_ready
             self.is_connected = True
+            self.num_chs = self.interrogator.channel_count
             
         # try
         except OSError:
@@ -62,33 +64,6 @@ class HyperionPublisher(Node):
         self.get_logger().info("Connecting to IP: {}".format(self.ip_address))        
         
     # get_params
-    
-    def instantiate_publishers(self):
-        ''' Method to instantiate the publishers for the class'''
-        
-        
-        if self.is_connected:
-            self.signal_pubs = {}
-            topic_raw = 'sensor/CH{:d}/raw'
-            topic_proc = 'sensor/CH{:d}/processd'
-            for idx in range(1, self.interrogator.channel_count+1):
-                ch_pub = {}
-                ch_pub['raw'] = self.create_publisher(Float64MultiArray, topic_raw.format(idx), 10)
-                ch_pub['processed'] = self.create_publisher(Float64MultiArray, topic_proc.format(idx), 10)
-                self.signal_pubs[idx] = ch_pub
-                
-            # idx
-            
-            self.get_logger().info('Publishing raw and processed signals.')
-            
-        # if
-        
-        else:
-            self.get_logger().warning("FBG Publishers not configured since interrogator not connected.")
-            
-        # else
-        
-    # instantiate_publishers
     
     def parse_peaks(self, peak_data):
         ''' Parse the peak data into a dict'''
@@ -153,9 +128,10 @@ class HyperionPublisher(Node):
     
     def reconnect_service(self, request, response):
         ''' reconnect to the IP address '''
+        self.get_logger().info("Reconnecting to Hyperion interrogator...")
         self.get_params()
         self.connect()
-        self.instantiate_publishers()
+        self.start_publishers()
         
         response.success = True
         
@@ -165,7 +141,42 @@ class HyperionPublisher(Node):
         # if
         
         return response
+        
     # reconnect_service
+    
+    def start_publishers(self):
+        ''' Method to instantiate the publishers for the class'''
+        
+        self.signal_pubs = {}
+        if self.is_connected:
+            topic_raw = 'sensor/CH{:d}/raw'
+            topic_proc = 'sensor/CH{:d}/processd'
+            for idx in range(1, self.num_chs + 1):
+                ch_pub = {}
+                ch_pub['raw'] = self.create_publisher(Float64MultiArray, topic_raw.format(idx), 10)
+                ch_pub['processed'] = self.create_publisher(Float64MultiArray, topic_proc.format(idx), 10)
+                self.signal_pubs[idx] = ch_pub
+                
+            # idx
+            
+            self.get_logger().info('Publishing raw and processed signals.')
+            
+        # if
+        
+        else:
+            self.get_logger().warning("FBG Publishers not configured since interrogator not connected.")
+            
+        # else
+        
+    # start_publishers
+    
+    def start_services(self):
+        ''' Method to instantiate the services for this node '''
+        self.reconnect_srv = self.create_service(Trigger, '{}/interrogator/reconnect'.format(self.get_name()), 
+                                self.reconnect_service)
+        
+    # start_services
+    
     
 # class: HyperionPublisher
 
