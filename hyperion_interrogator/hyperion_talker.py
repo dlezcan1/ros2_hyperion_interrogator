@@ -149,8 +149,8 @@ class HyperionPublisher(Node):
         
         self.signal_pubs = {}
         if self.is_connected:
-            topic_raw = 'sensor/CH{:d}/raw'
-            topic_proc = 'sensor/CH{:d}/processd'
+            topic_raw = '/sensor/CH{:d}/raw'
+            topic_proc = '/sensor/CH{:d}/processed'
             for idx in range(1, self.num_chs + 1):
                 ch_pub = {}
                 ch_pub['raw'] = self.create_publisher(Float64MultiArray, topic_raw.format(idx), 10)
