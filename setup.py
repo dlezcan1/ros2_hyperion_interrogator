@@ -1,4 +1,5 @@
 from setuptools import setup
+import glob
 
 package_name = 'hyperion_interrogator'
 submodules = '{}/hyperionlib'.format(package_name)
@@ -11,6 +12,7 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        ('share/' + package_name, glob.glob('launch/*.launch.py')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,

@@ -2,7 +2,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.exceptions import ParameterNotDeclaredException
 
-from std_msgs.msg import Float64MultiArray, MultiArrayDimension
+from std_msgs.msg import Bool, Float64MultiArray, MultiArrayDimension
 from std_srvs.srv import Trigger
 from rcl_interfaces.msg import SetParametersResult
 
@@ -70,6 +70,7 @@ class HyperionPublisher(Node):
         self.get_logger().info("Connecting to IP: {}".format(self.ip_address))
         
         self.ref_wavelengths = self.get_parameter(HyperionPublisher.param_names['ref_wl']).get_parameter_value().double_array_value
+        self.get_logger().info(f"Reference wavelengths detected: {self.ref_wavelengths}")
         
     # get_params
     
@@ -119,6 +120,9 @@ class HyperionPublisher(Node):
     def publish_peaks(self):
         ''' Publish the peaks on an timer '''
             
+        # publish the connection status
+        self.connected_pub.publish(Bool(data=self.is_connected))
+        
         if self.is_connected and self.interrogator.is_ready:
             peaks = parse_peaks(self.interrogator.peaks)
             
@@ -179,7 +183,6 @@ class HyperionPublisher(Node):
     def reconnect_service(self, request, response):
         ''' reconnect to the IP address '''
         self.get_logger().info("Reconnecting to Hyperion interrogator...")
-        self.get_params()
         self.connect()
         self.start_publishers()
         
@@ -197,9 +200,11 @@ class HyperionPublisher(Node):
     def start_publishers(self):
         ''' Method to instantiate the publishers for the class'''
         
+        # connected publisher
+        self.connected_pub = self.create_publisher(Bool, 'interrogator/connected', 10)
         self.signal_pubs = {}
-        self.signal_pubs['all'] = {'raw':       self.create_publisher(Float64MultiArray, '/sensor/raw', 10),
-                                   'processed': self.create_publisher(Float64MultiArray, '/sensor/processed', 10)}
+        self.signal_pubs['all'] = {'raw':       self.create_publisher(Float64MultiArray, 'sensor/raw', 10),
+                                   'processed': self.create_publisher(Float64MultiArray, 'sensor/processed', 10)}
         if self.is_connected:
             topic_raw = '/sensor/CH{:d}/raw'
             topic_proc = '/sensor/CH{:d}/processed'
