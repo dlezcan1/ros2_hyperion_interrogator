@@ -4,6 +4,7 @@ from rclpy.exceptions import ParameterNotDeclaredException
 
 from std_msgs.msg import Float64MultiArray, MultiArrayDimension
 from std_srvs.srv import Trigger
+from rcl_interfaces.msg import SetParametersResult
 
 import asyncio
 import numpy as np
@@ -12,14 +13,19 @@ from .hyperionlib.hyperion import Hyperion, AsyncHyperion
 
 class HyperionPublisher(Node):
     # PARAMETER NAMES
-    ip_param_name = 'interrogator/ip_address'
+    param_names = {
+                   'ip': 'interrogator/ip_address',
+                   'ref_wl': 'sensor/reference'
+                  }
         
     def __init__(self):
         super().__init__('Hyperion')
         
         # Hyperion parameters
-        self.declare_parameter(HyperionPublisher.ip_param_name, '10.0.0.5')
+        self.declare_parameter(HyperionPublisher.param_names['ip'], '10.0.0.5')
+        self.declare_parameter(HyperionPublisher.param_names['ref_wl'])
         self.get_params()
+        self.add_on_set_parameters_callback(self.parameter_callback) # update parameters
         
         # connect to Hyperion Interrogator
         self.connect()
@@ -27,7 +33,7 @@ class HyperionPublisher(Node):
         # setup the publishers
         self.start_publishers()
         
-        # setup services TODO
+        # setup services
         self.start_services()
         
         # setup the publisher callback
@@ -60,10 +66,31 @@ class HyperionPublisher(Node):
         ''' Read in parameters for the Hyperion interrogator '''
         # Hyperion IP address
         
-        self.ip_address = self.get_parameter(HyperionPublisher.ip_param_name).get_parameter_value().string_value
-        self.get_logger().info("Connecting to IP: {}".format(self.ip_address))        
+        self.ip_address = self.get_parameter(HyperionPublisher.param_names['ip']).get_parameter_value().string_value
+        self.get_logger().info("Connecting to IP: {}".format(self.ip_address))
+        
+        self.ref_wavelengths = self.get_parameter(HyperionPublisher.param_names['ref_wl']).get_parameter_value().double_array_value
         
     # get_params
+    
+    def parameter_callback(self, params):
+        ''' Parameter update call back function'''
+        for param in params:
+            if param.name == HyperionPublisher.param_names['ip']:
+                self.ip_address = param.string_value
+                
+            # if
+            
+            elif param.name == HyperionPublisher.param_names['ref_wl']:
+                self.ref_wavelengths = param.double_array_value
+                
+            # elif
+            
+        # for
+        
+        return SetParameterResult(successful=True)
+        
+    # parameter_callback
     
     def parse_peaks(self, peak_data):
         ''' Parse the peak data into a dict'''
@@ -91,10 +118,19 @@ class HyperionPublisher(Node):
     
     def publish_peaks(self):
         ''' Publish the peaks on an timer '''
-        
+            
         if self.is_connected and self.interrogator.is_ready:
             peaks = parse_peaks(self.interrogator.peaks)
             
+            # prepare total message
+            raw_tot_msg = Float64MultiArray()
+            proc_tot_msg = Float64MultiArray()
+            
+            raw_tot_msg.layout.dim = []
+            proc_tot_msg.layout.dim = []
+            raw_tot_msg.data = []
+            proc_tot_msg.data = []
+
             for ch_num, data in peaks.items():
                 # grab the channel publishers
                 raw_pub = self.signal_pubs[ch_num]['raw']
@@ -104,19 +140,33 @@ class HyperionPublisher(Node):
                 raw_msg = Float64MultiArray()
                 proc_msg = Float64MultiArray()
                 
-                raw_msg.stride = data.dtype.itemsize
-                raw_msg.size = data.size
+                raw_msg.layout.dim.stride = data.dtype.itemsize
+                raw_msg.layout.dim.size = data.size
                 raw_msg.data = data.flatten().tolist()
                 
-                proc_msg.stride = data.dtype.itemsize
-                proc_msg.size = data.size
+                proc_msg.layout.dim.stride = data.dtype.itemsize
+                proc_msg.layout.dim.size = data.size
                 proc_msg.data = data.flatten().tolist() # TODO: NEED TO DO ACTUAL PROCESSING
+            
+                # add the message to the total message
+                raw_tot_msg.layout.dim.append(MultiArrayDimension(label=f"CH{ch_num}",
+                                                                  size=raw_msg.size, stride=data.dtype.itemsize))
+                proc_tot_msg.layout.dim.append(MultiArrayDimension(label=f"CH{ch_num}",
+                                                                   size=proc_msg.size, stride=data.dtype.itemsize))
+                
+                raw_tot_msg.data.append(raw_msg.data)
+                proc_tot_msg.data.append(proc_msg.data)
             
                 # publish the messages
                 raw_pub.publish(raw_msg)
                 proc_pub.publish(proc_msg)
                 
             # for
+            
+            # publish the entire signal
+            self.signal_pubs['all']['raw'].publish(raw_tot_msg)
+            self.signal_pubs['all']['processed'].publish(proc_tot_msg)
+            
         # if
         
         else:
@@ -148,6 +198,8 @@ class HyperionPublisher(Node):
         ''' Method to instantiate the publishers for the class'''
         
         self.signal_pubs = {}
+        self.signal_pubs['all'] = {'raw':       self.create_publisher(Float64MultiArray, '/sensor/raw', 10),
+                                   'processed': self.create_publisher(Float64MultiArray, '/sensor/processed', 10)}
         if self.is_connected:
             topic_raw = '/sensor/CH{:d}/raw'
             topic_proc = '/sensor/CH{:d}/processed'
