@@ -24,7 +24,8 @@ setup(
     entry_points={
         'console_scripts': [
             'hyperion_talker = hyperion_interrogator.hyperion_talker:main',
-            'reconnect = hyperion_interrogator.reconnect_client:main'
+            'reconnect = hyperion_interrogator.reconnect_client:main',
+            'calibrate_sensors = hyperion_interrogator.sensor_calibrate_client:main'
         ],
     },
 )

@@ -15,7 +15,8 @@ class HyperionPublisher(Node):
     # PARAMETER NAMES
     param_names = {
                    'ip': 'interrogator/ip_address',
-                   'ref_wl': 'sensor/reference'
+                   'ref_wl': 'sensor/CH{:d}/reference',
+                   'num_samples': 'sensor/num_samples'
                   }
         
     def __init__(self):
@@ -23,7 +24,7 @@ class HyperionPublisher(Node):
         
         # Hyperion parameters
         self.declare_parameter(HyperionPublisher.param_names['ip'], '10.0.0.5')
-        self.declare_parameter(HyperionPublisher.param_names['ref_wl'])
+        self.declare_parameter(HyperionPublisher.param_names['num_samples'], 200)
         self.get_params()
         self.add_on_set_parameters_callback(self.parameter_callback) # update parameters
         
@@ -69,8 +70,7 @@ class HyperionPublisher(Node):
         self.ip_address = self.get_parameter(HyperionPublisher.param_names['ip']).get_parameter_value().string_value
         self.get_logger().info("Connecting to IP: {}".format(self.ip_address))
         
-        self.ref_wavelengths = self.get_parameter(HyperionPublisher.param_names['ref_wl']).get_parameter_value().double_array_value
-        self.get_logger().info(f"Reference wavelengths detected: {self.ref_wavelengths}")
+        self.num_samples = self.get_parameter(HyperionPublisher.param_names['num_samples']).get_parameter_value().integer_value
         
     # get_params
     
@@ -82,8 +82,8 @@ class HyperionPublisher(Node):
                 
             # if
             
-            elif param.name == HyperionPublisher.param_names['ref_wl']:
-                self.ref_wavelengths = param.double_array_value
+            elif param.name == HyperionPublisher.param_names['num_samples']:
+                self.ref_wavelengths = param.integer_value
                 
             # elif
             
@@ -197,6 +197,43 @@ class HyperionPublisher(Node):
         
     # reconnect_service
     
+    def ref_wl_service(self, request, response):
+        ''' Service to get the reference wavelength '''
+        if self.is_connected and self.interrogator.is_ready:
+            self.get_logger().info(f"Starting to recalibrate the sensors wavelengths for {self.num_samples} samples.")
+            data = {}
+            for i in range(self.num_samples):
+                signal = parse_peaks(self.interrogator.peaks)
+                
+                for ch_num, peaks in signal.items():
+                    if ch_num not in data.keys():
+                        data[ch_num] = peaks
+                        
+                    else:
+                        data[ch_num] += peaks
+                        
+                # for
+                
+            # for
+            
+            # divide out
+            for ch_num, agg_peaks in data.items():
+                self.ref_wavelengths[ch_num] = agg_peaks/self.num_samples
+            # for
+            
+            response.success = True
+        
+        # if
+        else:
+            response.success = False
+            response.message = "Interrogator was not able to gather peaks. Check connection and IP address."
+            
+        # else
+            
+        return response
+        
+    # ref_wl_service
+    
     def start_publishers(self):
         ''' Method to instantiate the publishers for the class'''
         
@@ -231,6 +268,7 @@ class HyperionPublisher(Node):
         ''' Method to instantiate the services for this node '''
         self.reconnect_srv = self.create_service(Trigger, '{}/interrogator/reconnect'.format(self.get_name()), 
                                 self.reconnect_service)
+        self.calibrate_srv = self.create_service(Trigger, 'sensor/calibrate', self.ref_wl_service)
         
     # start_services
     
