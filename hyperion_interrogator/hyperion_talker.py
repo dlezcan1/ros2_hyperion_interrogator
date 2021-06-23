@@ -106,14 +106,44 @@ class HyperionPublisher(Node):
         
     # parse_peaks
     
-    def process_signals(self, raw_signals):
+    def process_signals(self, peak_signals, temp_comp: bool = False):
         ''' Method to perform the signal processing
         
             This includes:
                 - Base wavelength shifting
-                - Temperature compensation (if set)
+                - NOTIMPLEMENTED: Temperature compensation (if set)
+            
+            Including 
         '''
-        pass
+        proc_signals = {}
+        
+        for ch_num, peaks in peak_signals.items():
+            proc_signals[ch_num] = {}
+            
+            proc_signals[ch_num]['raw'] = peaks
+            proc_signals[ch_num]['processed'] = peaks - self.ref_wavelengths[ch_num]
+            
+            
+        # for
+        
+        # temperature compensation 
+        if temp_comp:
+            try:
+                mean_shifts = np.vstack(peak_signals.values()).mean(axis=0)
+                
+                for ch_num in proc_signals.keys():
+                    proc_signals[ch_num]['processed'] -= mean_shifts
+                    
+                # for
+                
+            except:
+                self.get_logger().warning("Unable to perform temperature compensation for signal processing.")
+                
+            # except
+            
+        # if
+        
+        return proc_signals
         
     # process_signals
     
@@ -125,6 +155,7 @@ class HyperionPublisher(Node):
         
         if self.is_connected and self.interrogator.is_ready:
             peaks = parse_peaks(self.interrogator.peaks)
+            all_peaks = process_signals(peaks) # perform processing 
             
             # prepare total message
             raw_tot_msg = Float64MultiArray()
@@ -135,7 +166,7 @@ class HyperionPublisher(Node):
             raw_tot_msg.data = []
             proc_tot_msg.data = []
 
-            for ch_num, data in peaks.items():
+            for ch_num in all_peaks.items():
                 # grab the channel publishers
                 raw_pub = self.signal_pubs[ch_num]['raw']
                 proc_pub = self.signal_pubs[ch_num]['processed']
@@ -144,13 +175,22 @@ class HyperionPublisher(Node):
                 raw_msg = Float64MultiArray()
                 proc_msg = Float64MultiArray()
                 
-                raw_msg.layout.dim.stride = data.dtype.itemsize
-                raw_msg.layout.dim.size = data.size
-                raw_msg.data = data.flatten().tolist()
+                # Raw data processing
+                raw_data = all_peaks[ch_num]['raw']
                 
-                proc_msg.layout.dim.stride = data.dtype.itemsize
-                proc_msg.layout.dim.size = data.size
-                proc_msg.data = data.flatten().tolist() # TODO: NEED TO DO ACTUAL PROCESSING
+                raw_msg.layout.dim.stride = raw_data.dtype.itemsize
+                raw_msg.layout.dim.size = raw_data.size
+                raw_msg.data = raw_data.flatten().tolist()
+                
+                # processed data
+                if 'processed' in all_peaks[ch_num].keys():
+                    proc_data = all_peaks[ch_num]['processed']
+                
+                    proc_msg.layout.dim.stride = proc_data.dtype.itemsize
+                    proc_msg.layout.dim.size = proc_data.size
+                    proc_msg.data = proc_data.flatten().tolist() # TODO: NEED TO DO ACTUAL PROCESSING
+            
+                # if 
             
                 # add the message to the total message
                 raw_tot_msg.layout.dim.append(MultiArrayDimension(label=f"CH{ch_num}",
@@ -161,7 +201,7 @@ class HyperionPublisher(Node):
                 raw_tot_msg.data.append(raw_msg.data)
                 proc_tot_msg.data.append(proc_msg.data)
             
-                # publish the messages
+                # publish the channel messages
                 raw_pub.publish(raw_msg)
                 proc_pub.publish(proc_msg)
                 
@@ -201,18 +241,24 @@ class HyperionPublisher(Node):
         ''' Service to get the reference wavelength '''
         if self.is_connected and self.interrogator.is_ready:
             self.get_logger().info(f"Starting to recalibrate the sensors wavelengths for {self.num_samples} samples.")
-            data = {}
+            data = {}   
             for i in range(self.num_samples):
-                signal = parse_peaks(self.interrogator.peaks)
-                
-                for ch_num, peaks in signal.items():
-                    if ch_num not in data.keys():
-                        data[ch_num] = peaks
-                        
-                    else:
-                        data[ch_num] += peaks
-                        
-                # for
+                try:
+                    signal = parse_peaks(self.interrogator.peaks)
+                    
+                    for ch_num, peaks in signal.items():
+                        if ch_num not in data.keys():
+                            data[ch_num] = peaks
+                            
+                        else:
+                            data[ch_num] += peaks
+                            
+                    # for
+                # try
+                except:
+                    pass
+                    
+                # except
                 
             # for
             
@@ -243,8 +289,8 @@ class HyperionPublisher(Node):
         self.signal_pubs['all'] = {'raw':       self.create_publisher(Float64MultiArray, 'sensor/raw', 10),
                                    'processed': self.create_publisher(Float64MultiArray, 'sensor/processed', 10)}
         if self.is_connected:
-            topic_raw = '/sensor/CH{:d}/raw'
-            topic_proc = '/sensor/CH{:d}/processed'
+            topic_raw = 'sensor/CH{:d}/raw'
+            topic_proc = 'sensor/CH{:d}/processed'
             for idx in range(1, self.num_chs + 1):
                 ch_pub = {}
                 ch_pub['raw'] = self.create_publisher(Float64MultiArray, topic_raw.format(idx), 10)
