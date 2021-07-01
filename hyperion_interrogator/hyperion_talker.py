@@ -23,8 +23,9 @@ class HyperionPublisher(Node):
         super().__init__('Hyperion')
         
         # Hyperion parameters
-        self.declare_parameter(HyperionPublisher.param_names['ip'], '10.0.0.5')
+        self.declare_parameter(HyperionPublisher.param_names['ip'], '10.0.0.55')
         self.declare_parameter(HyperionPublisher.param_names['num_samples'], 200)
+        self.ref_wavelengths = {}
         self.get_params()
         self.add_on_set_parameters_callback(self.parameter_callback) # update parameters
         
@@ -78,18 +79,18 @@ class HyperionPublisher(Node):
         ''' Parameter update call back function'''
         for param in params:
             if param.name == HyperionPublisher.param_names['ip']:
-                self.ip_address = param.string_value
+                self.ip_address = param.get_parameter_value().string_value
                 
             # if
             
             elif param.name == HyperionPublisher.param_names['num_samples']:
-                self.ref_wavelengths = param.integer_value
+                self.ref_wavelengths = param.get_parameter_value().integer_value
                 
             # elif
             
         # for
         
-        return SetParameterResult(successful=True)
+        return SetParametersResult(successful=True)
         
     # parameter_callback
     
@@ -121,8 +122,15 @@ class HyperionPublisher(Node):
             proc_signals[ch_num] = {}
             
             proc_signals[ch_num]['raw'] = peaks
-            proc_signals[ch_num]['processed'] = peaks - self.ref_wavelengths[ch_num]
+            try:
+                proc_signals[ch_num]['processed'] = peaks - self.ref_wavelengths[ch_num]
             
+            # try
+           
+            except Exception as e:
+                # self.get_logger().warning(No)
+                continue
+            # except
             
         # for
         
@@ -154,8 +162,8 @@ class HyperionPublisher(Node):
         self.connected_pub.publish(Bool(data=self.is_connected))
         
         if self.is_connected and self.interrogator.is_ready:
-            peaks = parse_peaks(self.interrogator.peaks)
-            all_peaks = process_signals(peaks) # perform processing 
+            peaks = self.parse_peaks(self.interrogator.peaks)
+            all_peaks = self.process_signals(peaks) # perform processing 
             
             # prepare total message
             raw_tot_msg = Float64MultiArray()
@@ -166,7 +174,7 @@ class HyperionPublisher(Node):
             raw_tot_msg.data = []
             proc_tot_msg.data = []
 
-            for ch_num in all_peaks.items():
+            for ch_num in all_peaks.keys():
                 # grab the channel publishers
                 raw_pub = self.signal_pubs[ch_num]['raw']
                 proc_pub = self.signal_pubs[ch_num]['processed']
@@ -178,32 +186,46 @@ class HyperionPublisher(Node):
                 # Raw data processing
                 raw_data = all_peaks[ch_num]['raw']
                 
-                raw_msg.layout.dim.stride = raw_data.dtype.itemsize
-                raw_msg.layout.dim.size = raw_data.size
+                raw_dim = MultiArrayDimension(stride=raw_data.dtype.itemsize,
+                                              size=raw_data.size)
+
+                raw_msg.layout.dim.append(raw_dim)
                 raw_msg.data = raw_data.flatten().tolist()
                 
                 # processed data
                 if 'processed' in all_peaks[ch_num].keys():
                     proc_data = all_peaks[ch_num]['processed']
-                
-                    proc_msg.layout.dim.stride = proc_data.dtype.itemsize
-                    proc_msg.layout.dim.size = proc_data.size
-                    proc_msg.data = proc_data.flatten().tolist() # TODO: NEED TO DO ACTUAL PROCESSING
+                    
+                    proc_dim = MultiArrayDimension(stride=proc_data.dtype.itemsize,
+                                                   size=proc_data.size)
+                    proc_msg.layout.dim.append(proc_dim)
+                    proc_msg.data = proc_data.flatten().tolist()
             
                 # if 
             
                 # add the message to the total message
                 raw_tot_msg.layout.dim.append(MultiArrayDimension(label=f"CH{ch_num}",
-                                                                  size=raw_msg.size, stride=data.dtype.itemsize))
-                proc_tot_msg.layout.dim.append(MultiArrayDimension(label=f"CH{ch_num}",
-                                                                   size=proc_msg.size, stride=data.dtype.itemsize))
+                                                                  size=raw_msg.layout.dim[0].size, 
+                                                                  stride=raw_msg.layout.dim[0].stride))
+                if 'processed' in all_peaks[ch_num].keys():
+                    proc_tot_msg.layout.dim.append(MultiArrayDimension(label=f"CH{ch_num}",
+                                                                       size=proc_msg.layout.dim[0].size, 
+                                                                       stride=proc_msg.layout.dim[0].stride))
+                # if
                 
-                raw_tot_msg.data.append(raw_msg.data)
-                proc_tot_msg.data.append(proc_msg.data)
+                raw_tot_msg.data += raw_msg.data
+                
+                if 'processed' in all_peaks[ch_num].keys():
+                    proc_tot_msg.data += proc_msg.data
+                    
+                # if
             
                 # publish the channel messages
                 raw_pub.publish(raw_msg)
-                proc_pub.publish(proc_msg)
+                if 'processed' in all_peaks[ch_num].keys():
+                    proc_pub.publish(proc_msg)
+                    
+                # if
                 
             # for
             
