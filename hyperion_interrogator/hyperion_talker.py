@@ -14,9 +14,9 @@ from .hyperionlib.hyperion import Hyperion, AsyncHyperion
 class HyperionPublisher(Node):
     # PARAMETER NAMES
     param_names = {
-                   'ip': 'interrogator/ip_address',
-                   'ref_wl': 'sensor/CH{:d}/reference',
-                   'num_samples': 'sensor/num_samples'
+                   'ip': 'interrogator.ip_address',
+                   'ref_wl': 'sensor.CH{:d}.reference',
+                   'num_samples': 'sensor.num_samples'
                   }
         
     def __init__(self):

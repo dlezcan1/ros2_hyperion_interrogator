@@ -7,7 +7,9 @@ def generate_launch_description():
     ld = LaunchDescription()
     
     # arguments
-    hyperion_ip_arg = DeclareLaunchArgument('ip', default_value='10.0.0.5')
+    hyperion_ip_arg = DeclareLaunchArgument('ip',
+                                            default_value='10.0.0.55'
+                                            )
     
     # Nodes
     hyperion_node = Node(
@@ -15,10 +17,11 @@ def generate_launch_description():
                         namespace='needle',
                         executable='hyperion_talker',
                         parameters=[{
-                                    "interrogator/ip_address": LaunchConfiguration('ip')
+                                    "interrogator.ip_address": LaunchConfiguration('ip')
                                     }]
                        )
     # add to launch description
+    ld.add_action(hyperion_ip_arg)
     ld.add_action(hyperion_node)
        
     return ld
