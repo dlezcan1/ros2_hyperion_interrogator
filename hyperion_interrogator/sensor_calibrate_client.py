@@ -9,6 +9,7 @@ def main(args=None):
     
     node = rclpy.create_node('sensor_calibrate_client')
     srv_name = '{}/sensor/calibrate'.format(node.get_namespace())
+    node.get_logger().info(f"Connecting to {srv_name}")
     client = node.create_client(Trigger, srv_name)
     
     req = Trigger.Request()

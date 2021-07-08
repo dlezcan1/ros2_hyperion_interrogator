@@ -16,7 +16,7 @@ setup(
     ],
     install_requires=['setuptools'],
     zip_safe=True,
-    maintainer='Dimitri Lezcano',
+    maintainer='Dimitri Lezcano',#
     maintainer_email='dlezcan1@jhu.edu',
     description='Hyperion FBG Interrogator Publisher',
     license='MIT',

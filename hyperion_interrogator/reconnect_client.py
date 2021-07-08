@@ -12,7 +12,7 @@ def main(args=None):
     parsed_args = parser.parse_args()
     
     # service name
-    srv_name = '/{}/interrogator/reconnect'.format(parsed_args.node_name)
+    srv_name = '/{}/interrogator/reconnect'.format(parsed_args.node_name.lstrip('/').rstrip('/'))
     
     rclpy.init(args=args)
     
@@ -28,6 +28,7 @@ def main(args=None):
     
     else:
         future = client.call_async(req)
+        node.get_logger().info("Prompting for interrogator reconnect...")
         rclpy.spin_until_future_complete(node, future)
         
         response = future.result()

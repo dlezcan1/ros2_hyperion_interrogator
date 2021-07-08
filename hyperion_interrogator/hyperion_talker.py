@@ -10,6 +10,7 @@ import asyncio
 import numpy as np
 from .hyperionlib.hyperion import Hyperion, AsyncHyperion
 
+from socket import gaierror # for connection error
 
 class HyperionPublisher(Node):
     # PARAMETER NAMES
@@ -19,8 +20,8 @@ class HyperionPublisher(Node):
                    'num_samples': 'sensor.num_samples'
                   }
         
-    def __init__(self):
-        super().__init__('Hyperion')
+    def __init__(self, name="Hyperion"):
+        super().__init__(name)
         
         # Hyperion parameters
         self.declare_parameter(HyperionPublisher.param_names['ip'], '10.0.0.55')
@@ -108,6 +109,36 @@ class HyperionPublisher(Node):
         
     # parse_peaks
     
+    @staticmethod
+    def parsed_peaks_to_msg(parsed_peaks):
+        ''' Convert the parsed peaks to a Float64MultiArray msgs (total and per channel)'''
+        # initialize the Total message
+        total_msg = Float64MultiArray()
+        total_msg.layout.dim = []
+        total_msg.data = []
+        
+        channel_msgs = {}
+        
+        for ch_num, peaks in parsed_peaks.items():
+            # prepare the individual channel msg
+            ch_msg = Float64MultiArray()
+            ch_msg.layout.dim.append(MultiArrayDimension(label=f"CH{ch_num}",
+                                                         stride=peaks.dtype.itemsize,
+                                                         size=peaks.size * peaks.dtype.itemsize))
+            ch_msg.data = peaks.flatten().tolist()                                            
+             
+            channel_msgs[ch_num] = ch_msg
+            
+            # append to total msg
+            total_msg.layout.dim.append(ch_msg.layout.dim[0])
+            total_msg.data += ch_msg.data
+            
+        # for 
+        
+        return total_msg, channel_msgs
+        
+    # parsed_peaks_to_msg
+    
     def process_signals(self, peak_signals, temp_comp: bool = False):
         ''' Method to perform the signal processing
         
@@ -166,69 +197,31 @@ class HyperionPublisher(Node):
             peaks = self.parse_peaks(self.interrogator.peaks)
             all_peaks = self.process_signals(peaks) # perform processing 
             
-            # prepare total message
-            raw_tot_msg = Float64MultiArray()
-            proc_tot_msg = Float64MultiArray()
+            # split the peaks into raw and processed signals
+            raw_peaks = dict((ch_num, all_peaks[ch_num]['raw']) for ch_num in all_peaks.keys())
             
-            raw_tot_msg.layout.dim = []
-            proc_tot_msg.layout.dim = []
-            raw_tot_msg.data = []
-            proc_tot_msg.data = []
-
+            proc_ch_nums = [ch for ch in all_peaks.keys() if 'processed' in all_peaks[ch].keys()]
+            proc_peaks = dict((ch, all_peaks[ch]['processed']) for ch in proc_ch_nums)
+            
+            # prepare messages
+            raw_tot_msg, raw_ch_msgs = self.parsed_peaks_to_msg(raw_peaks)
+            proc_tot_msg, proc_ch_msgs = self.parsed_peaks_to_msg(proc_peaks)
+            
             for ch_num in all_peaks.keys():
-                # grab the channel publishers
+                # raw signals
                 raw_pub = self.signal_pubs[ch_num]['raw']
-                proc_pub = self.signal_pubs[ch_num]['processed']
-                
-                # prepare the message
-                raw_msg = Float64MultiArray()
-                proc_msg = Float64MultiArray()
-                
-                # Raw data processing
-                raw_data = all_peaks[ch_num]['raw']
-                
-                raw_dim = MultiArrayDimension(stride=raw_data.dtype.itemsize,
-                                              size=raw_data.size*raw_data.dtype.itemsize)
-
-                raw_msg.layout.dim.append(raw_dim)
-                raw_msg.data = raw_data.flatten().tolist()
-                
-                # processed data
-                if 'processed' in all_peaks[ch_num].keys():
-                    proc_data = all_peaks[ch_num]['processed']
-                    
-                    proc_dim = MultiArrayDimension(stride=proc_data.dtype.itemsize,
-                                                   size=proc_data.size*proc_data.dtype.itemsize)
-                    proc_msg.layout.dim.append(proc_dim)
-                    proc_msg.data = proc_data.flatten().tolist()
-            
-                # if 
-            
-                # add the message to the total message
-                raw_tot_msg.layout.dim.append(MultiArrayDimension(label=f"CH{ch_num}",
-                                                                  size=raw_msg.layout.dim[0].size, 
-                                                                  stride=raw_msg.layout.dim[0].stride))
-                if 'processed' in all_peaks[ch_num].keys():
-                    proc_tot_msg.layout.dim.append(MultiArrayDimension(label=f"CH{ch_num}",
-                                                                       size=proc_msg.layout.dim[0].size, 
-                                                                       stride=proc_msg.layout.dim[0].stride))
-                # if
-                
-                raw_tot_msg.data += raw_msg.data
-                
-                if 'processed' in all_peaks[ch_num].keys():
-                    proc_tot_msg.data += proc_msg.data
-                    
-                # if
-            
-                # publish the channel messages
+                raw_msg = raw_ch_msgs[ch_num]
                 raw_pub.publish(raw_msg)
-                if 'processed' in all_peaks[ch_num].keys():
+                
+                # processed signals
+                if ch_num in proc_peaks.keys():
+                    proc_msg = proc_ch_msgs[ch_num]
+                    proc_pub = self.signal_pubs[ch_num]['processed']
                     proc_pub.publish(proc_msg)
                     
                 # if
-                
-            # for
+            
+            # ch_num
             
             # publish the entire signal
             self.signal_pubs['all']['raw'].publish(raw_tot_msg)
@@ -264,11 +257,15 @@ class HyperionPublisher(Node):
         ''' Service to get the reference wavelength '''
         if self.is_connected and self.interrogator.is_ready:
             self.get_logger().info(f"Starting to recalibrate the sensors wavelengths for {self.num_samples} samples.")
-            data = {}   
-            for i in range(self.num_samples):
+            
+            data = {} 
+            counter = 0
+            error_counter = 0
+            max_errors = 5
+            while counter < self.num_samples:
                 try:
-                    signal = parse_peaks(self.interrogator.peaks)
-                    
+                    signal = self.parse_peaks(self.interrogator.peaks)
+                                        
                     for ch_num, peaks in signal.items():
                         if ch_num not in data.keys():
                             data[ch_num] = peaks
@@ -277,20 +274,34 @@ class HyperionPublisher(Node):
                             data[ch_num] += peaks
                             
                     # for
+                    
+                    # increment counter
+                    counter += 1
+                    error_counter = 0
+                    
+                    
                 # try
-                except:
-                    pass
+                except gaierror: # no peaks
+                    error_counter += 1
+                    
+                    if error_counter > max_errors: # make sure we don't go into an endless loop
+                        response.success = False
+                        response.message = "Timeout interrogation occurred."
+                        
+                    # if
+                    continue
                     
                 # except
-                
-            # for
+            # while   
             
-            # divide out
+            # find the average
             for ch_num, agg_peaks in data.items():
                 self.ref_wavelengths[ch_num] = agg_peaks/self.num_samples
             # for
             
             response.success = True
+            self.get_logger().info("Recalibration successful")
+            self.get_logger().info("Reference wavelengths: {}".format(list(self.ref_wavelengths.values())))
         
         # if
         else:
