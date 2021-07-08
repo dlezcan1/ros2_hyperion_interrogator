@@ -1,0 +1,13 @@
+<launch>
+	<arg name="ip" default="10.0.0.55"/>
+	
+	<group>
+		<push-ros-namespace namespace="/needle"/>
+		<node pkg="hyperion_interrogator" exec="hyperion_talker">
+			<param name="interrogator.ip_address" value="$(var ip)"/>
+			
+		</node>
+	</group>
+	
+</launch>
+		

@@ -48,12 +48,14 @@ class HyperionPublisher(Node):
     def connect(self):
         ''' (Re)Instantiate the Hyperion interrogator'''
         # self.interrogator = AsyncHyperion(self.ip_address)
+        self.get_logger().info("Connecting to IP: {}".format(self.ip_address))
         self.interrogator = Hyperion(self.ip_address)
         
         try:
             self.interrogator.is_ready
             self.is_connected = True
             self.num_chs = self.interrogator.channel_count
+            self.get_logger().info("Connected to IP: {}".format(self.ip_address))
             
         # try
         except OSError:
@@ -69,7 +71,6 @@ class HyperionPublisher(Node):
         # Hyperion IP address
         
         self.ip_address = self.get_parameter(HyperionPublisher.param_names['ip']).get_parameter_value().string_value
-        self.get_logger().info("Connecting to IP: {}".format(self.ip_address))
         
         self.num_samples = self.get_parameter(HyperionPublisher.param_names['num_samples']).get_parameter_value().integer_value
         
@@ -187,7 +188,7 @@ class HyperionPublisher(Node):
                 raw_data = all_peaks[ch_num]['raw']
                 
                 raw_dim = MultiArrayDimension(stride=raw_data.dtype.itemsize,
-                                              size=raw_data.size)
+                                              size=raw_data.size*raw_data.dtype.itemsize)
 
                 raw_msg.layout.dim.append(raw_dim)
                 raw_msg.data = raw_data.flatten().tolist()
@@ -197,7 +198,7 @@ class HyperionPublisher(Node):
                     proc_data = all_peaks[ch_num]['processed']
                     
                     proc_dim = MultiArrayDimension(stride=proc_data.dtype.itemsize,
-                                                   size=proc_data.size)
+                                                   size=proc_data.size*proc_data.dtype.itemsize)
                     proc_msg.layout.dim.append(proc_dim)
                     proc_msg.data = proc_data.flatten().tolist()
             
