@@ -352,6 +352,26 @@ class HyperionPublisher(Node):
         
     # start_services
     
+    @staticmethod
+    def unpack_fbg_msg(msg):
+        ''' Unpack Float64MultiArray into dict of numpy arrays '''
+        ret_val = {}
+        idx_i = 0
+            
+        for dim in msg.layout.dim:
+            ch_num = int(dim.label.strip('CH'))
+            size = int(dim.size/dim.stride)
+            
+            ret_val[ch_num] = np.float64(msg.data[idx_i:idx_i+size])
+            
+            idx_i += size # increment size to next counter
+            
+        # for
+            
+        return ret_val
+        
+    # unpack_fbg_msg
+    
     
 # class: HyperionPublisher
 
