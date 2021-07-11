@@ -1,6 +1,7 @@
 import rclpy
 from rclpy.node import Node
 from rclpy.exceptions import ParameterNotDeclaredException
+from rclpy.executors import Executor
 
 from std_msgs.msg import Bool, Float64MultiArray, MultiArrayDimension
 from std_srvs.srv import Trigger
@@ -10,7 +11,7 @@ import asyncio
 import numpy as np
 from .hyperionlib.hyperion import Hyperion, HCommTCPPeaksStreamer
 
-from hyperion_talker import HyperionPublisher
+from .hyperion_talker import HyperionPublisher
 
 class PeakStreamer(HyperionPublisher):
     # PARAMETER NAMES
@@ -18,35 +19,41 @@ class PeakStreamer(HyperionPublisher):
     def __init__(self, name="PeakStreamer"):
         super().__init__(name)
         
+        self.connect_streamer()
+        
         # remove the timer
         self.timer.destroy() # remove the timed publishing 
         del(self.timer_period)
 
-        
-        
-        
     # __init__
     
-    def connect(self):
+    def connect_streamer(self) -> bool:
         ''' Connect to hyperion interrogator and initialize peak streamer OVERRIDE'''
-        super().connect()
-        
         # initialize the peak steramer
         self.streamer_loop = asyncio.get_event_loop()
-        self.streamer_queue = asyncio.Queue(maxsize=5, loop=self.streamer_loop)
+        self.streamer_queue = asyncio.Queue(maxsize=5)
         self.streamer = HCommTCPPeaksStreamer(self.ip_address, self.streamer_loop, self.streamer_queue)
-            
-    # connect
+        
+        self.streamer_loop.create_task( self.publish_peaks_stream() )
+        self.streamer_loop.run_until_complete( self.streamer.stream_data() )
+        
+        return True
+    
+    # connect_streamer
     
     async def publish_peaks_stream(self):
-        while rclpy.ok():
+        while True: # rclpy.ok():
             # grab the peak data
+            self.get_logger().debug("Streaming Peaks")
             peak_data = await self.streamer_queue.get()
             self.streamer_queue.task_done()
             
             # parse and process the peaks
-            peaks = self.parse_peaks(peak_data)
-            all_peaks = self.process_peaks(peaks)
+            self.get_logger().debug("Parsing Peaks...")
+            peaks = self.parse_peaks(peak_data['data'])
+            self.get_logger().debug("Parsed peaks. Processing signals...")
+            all_peaks = self.process_signals(peaks)
+            self.get_logger().debug("Processed peaks.")
             
             # split the peaks into raw and processed signals
             raw_peaks = dict((ch_num, all_peaks[ch_num]['raw']) for ch_num in all_peaks.keys())
@@ -72,7 +79,7 @@ class PeakStreamer(HyperionPublisher):
                     
                 # if
             
-            # ch_num
+            # for
             
             # publish the entire signal
             self.signal_pubs['all']['raw'].publish(raw_tot_msg)
@@ -80,9 +87,9 @@ class PeakStreamer(HyperionPublisher):
             
             # publish that the interrogator is connected
             self.connected_pub.publish(Bool(data=self.is_connected))
+            self.get_logger().debug("Published peaks.")
             
         # while
-        
     # publish_peaks_stream
     
     def ref_wl_service(self, request, response):
@@ -145,7 +152,19 @@ class PeakStreamer(HyperionPublisher):
             
         # if
         
+        return response
+        
     # ref_wl_service
+    
+    def reconnect_service(self, request, response):
+        ''' Reconnect to the IP address '''
+        response = super().reconnect_service(request, response)
+        self.streamer.stop_streaming() # stop the current interrogator
+        self.connect_streamer()
+                
+        return response
+        
+    # reconnect_service
     
 # class: PeakStreamer
 

@@ -8,7 +8,7 @@ from rcl_interfaces.msg import SetParametersResult
 
 import asyncio
 import numpy as np
-from .hyperionlib.hyperion import Hyperion, AsyncHyperion
+from .hyperionlib.hyperion import Hyperion
 
 from socket import gaierror # for connection error
 
@@ -46,7 +46,7 @@ class HyperionPublisher(Node):
         
     # __init__
     
-    def connect(self):
+    def connect(self) -> bool:
         ''' (Re)Instantiate the Hyperion interrogator'''
         # self.interrogator = AsyncHyperion(self.ip_address)
         self.get_logger().info("Connecting to IP: {}".format(self.ip_address))
@@ -64,6 +64,8 @@ class HyperionPublisher(Node):
             self.is_connected = False
             
         # except
+        
+        return self.is_connected
         
     # connect
     
@@ -96,11 +98,11 @@ class HyperionPublisher(Node):
         
     # parameter_callback
     
-    def parse_peaks(self, peak_data):
+    def parse_peaks(self, peak_data) -> dict:
         ''' Parse the peak data into a dict'''
         
         data = {}
-        for idx in range(1, self.interrogator.channel_count+1):
+        for idx in range(1, self.num_chs+1):
             data[idx] = peak_data[idx].astype(np.float64)
             
         # for
@@ -110,7 +112,7 @@ class HyperionPublisher(Node):
     # parse_peaks
     
     @staticmethod
-    def parsed_peaks_to_msg(parsed_peaks):
+    def parsed_peaks_to_msg(parsed_peaks) -> (np.ndarray, dict):
         ''' Convert the parsed peaks to a Float64MultiArray msgs (total and per channel)'''
         # initialize the Total message
         total_msg = Float64MultiArray()
@@ -139,7 +141,7 @@ class HyperionPublisher(Node):
         
     # parsed_peaks_to_msg
     
-    def process_signals(self, peak_signals, temp_comp: bool = False):
+    def process_signals(self, peak_signals, temp_comp: bool = False) -> dict:
         ''' Method to perform the signal processing
         
             This includes:
@@ -346,14 +348,13 @@ class HyperionPublisher(Node):
     
     def start_services(self):
         ''' Method to instantiate the services for this node '''
-        self.reconnect_srv = self.create_service(Trigger, '{}/interrogator/reconnect'.format(self.get_name()), 
-                                self.reconnect_service)
+        self.reconnect_srv = self.create_service(Trigger, 'interrogator/reconnect', self.reconnect_service)
         self.calibrate_srv = self.create_service(Trigger, 'sensor/calibrate', self.ref_wl_service)
         
     # start_services
     
     @staticmethod
-    def unpack_fbg_msg(msg):
+    def unpack_fbg_msg(msg) -> dict:
         ''' Unpack Float64MultiArray into dict of numpy arrays '''
         ret_val = {}
         idx_i = 0

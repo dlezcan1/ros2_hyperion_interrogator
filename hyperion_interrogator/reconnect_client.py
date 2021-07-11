@@ -5,18 +5,19 @@ from rclpy.node import Node
 from std_srvs.srv import Trigger
 
 parser = argparse.ArgumentParser(description='Trigger Hyperion interrogator reconnect service')
-parser.add_argument('--node-name', type=str, default='Hyperion', required=False, help='Node name of interrogator')
+parser.add_argument('--namespace', type=str, default='', required=False, help='Namespace of interrogator')
 
 def main(args=None):
     # parse arguments
     parsed_args = parser.parse_args()
     
+    namespace = parsed_args.namespace.rstrip('/')
     # service name
-    srv_name = '/{}/interrogator/reconnect'.format(parsed_args.node_name.lstrip('/').rstrip('/'))
+    srv_name = '{}/interrogator/reconnect'.format(namespace)
     
     rclpy.init(args=args)
-    
-    node = rclpy.create_node('{}_interrogator_reconnect_client'.format(parsed_args.node_name.replace('/','_')))
+    node_head = namespace if len(namespace) == 0 else namespace + "_"
+    node = rclpy.create_node('{}interrogator_reconnect_client'.format(node_head))
     client = node.create_client(Trigger, srv_name)
     
     req = Trigger.Request()
