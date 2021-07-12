@@ -1,7 +1,6 @@
 import rclpy
 from rclpy.node import Node
 from rclpy.exceptions import ParameterNotDeclaredException
-from rclpy.executors import Executor
 
 from std_msgs.msg import Bool, Float64MultiArray, MultiArrayDimension
 from std_srvs.srv import Trigger
@@ -9,8 +8,10 @@ from rcl_interfaces.msg import SetParametersResult
 
 import asyncio
 import numpy as np
-from .hyperionlib.hyperion import Hyperion, HCommTCPPeaksStreamer
+import threading
+import sys
 
+from .hyperionlib.hyperion import Hyperion, HCommTCPPeaksStreamer
 from .hyperion_talker import HyperionPublisher
 
 class PeakStreamer(HyperionPublisher):
@@ -18,12 +19,15 @@ class PeakStreamer(HyperionPublisher):
     
     def __init__(self, name="PeakStreamer"):
         super().__init__(name)
-        
         self.connect_streamer()
         
-        # remove the timer
-        self.timer.destroy() # remove the timed publishing 
-        del(self.timer_period)
+        # reinstantiate a new timer for publishing connectivity
+        self.timer.cancel() # remove the timed publishing 
+        timer_period = 0.5
+        
+        self.timer = self.create_timer(timer_period, self.connection_publisher)
+        self.get_logger().info("Created new timer")
+        
 
     # __init__
     
@@ -35,14 +39,42 @@ class PeakStreamer(HyperionPublisher):
         self.streamer = HCommTCPPeaksStreamer(self.ip_address, self.streamer_loop, self.streamer_queue)
         
         self.streamer_loop.create_task( self.publish_peaks_stream() )
-        self.streamer_loop.run_until_complete( self.streamer.stream_data() )
         
+        def loop_in_thread(self, loop):
+            asyncio.set_event_loop(loop)
+            self.streamer_loop.run_until_complete( self.streamer.stream_data() )
+            print("Thread terminated.")
+        
+        # loop_in_thread
+        
+        self._pubthread = threading.Thread(target=loop_in_thread, args=(self, self.streamer_loop,))
+        self._pubthread.start()
+        
+        # asyncio.set_event_loop(asyncio.new_event_loop())
+        
+        self.get_logger().info("After streamer_loop")
         return True
     
     # connect_streamer
     
+    def connection_publisher(self):
+        ''' Publish if the interrogator is connected or not '''
+        self.connected_pub.publish(Bool(data=self.is_connected))
+        
+    # connection_publisher
+    
+    def destroy_node(self):
+        ''' Destroy the node '''
+        self.get_logger().info("Stopping Streaming...")
+        self.streamer.stop_streaming()
+        self.get_logger().info("Streaming Stopped. Destroying node...")
+        super().destroy_node()
+        self.get_logger().info("Node destroyed.")
+        
+    # destroy_node
+    
     async def publish_peaks_stream(self):
-        while True: # rclpy.ok():
+        while rclpy.ok():
             # grab the peak data
             self.get_logger().debug("Streaming Peaks")
             peak_data = await self.streamer_queue.get()
@@ -84,12 +116,12 @@ class PeakStreamer(HyperionPublisher):
             # publish the entire signal
             self.signal_pubs['all']['raw'].publish(raw_tot_msg)
             self.signal_pubs['all']['processed'].publish(proc_tot_msg)
-            
-            # publish that the interrogator is connected
-            self.connected_pub.publish(Bool(data=self.is_connected))
             self.get_logger().debug("Published peaks.")
             
         # while
+        
+        self.streamer.stop_streaming()
+        self.streamer.stream_active = False # stop the streaming
     # publish_peaks_stream
     
     def ref_wl_service(self, request, response):
@@ -158,7 +190,9 @@ class PeakStreamer(HyperionPublisher):
     
     def reconnect_service(self, request, response):
         ''' Reconnect to the IP address '''
+        self.get_logger().info("Beginning reconnect service...")
         response = super().reconnect_service(request, response)
+        self.get_logger().info("After super's reconnect service...")
         self.streamer.stop_streaming() # stop the current interrogator
         self.connect_streamer()
                 
@@ -177,13 +211,15 @@ def main(args = None):
         rclpy.spin(peak_streamer)
     
     except KeyboardInterrupt: 
-        pass
+        peak_streamer.streamer.stop_streaming()
         
         
     # clean up
+    
     peak_streamer.get_logger().info('{} shutting down...'.format(peak_streamer.get_name()))
-    peak_streamer.destroy_node()
+    peak_streamer.destroy_node()    
     rclpy.shutdown()
+    sys.exit()
     
 # main
 

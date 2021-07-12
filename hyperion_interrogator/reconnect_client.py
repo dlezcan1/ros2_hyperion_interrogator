@@ -28,6 +28,7 @@ def main(args=None):
     # if
     
     else:
+        node.get_logger().info(f"Triggering reconnect @ service: {srv_name}")
         future = client.call_async(req)
         node.get_logger().info("Prompting for interrogator reconnect...")
         rclpy.spin_until_future_complete(node, future)
