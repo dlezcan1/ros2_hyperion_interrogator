@@ -9,7 +9,7 @@ def main(args=None):
     
     node = rclpy.create_node('sensor_calibrate_client')
     
-    ns = node.get_namespace() if len(node.get_namespace) > 0 else ''
+    ns = node.get_namespace() if node.get_namespace() != '/' else ''
     srv_name = '{}/sensor/calibrate'.format(ns)
     node.get_logger().info(f"Connecting to {srv_name}")
     client = node.create_client(Trigger, srv_name)

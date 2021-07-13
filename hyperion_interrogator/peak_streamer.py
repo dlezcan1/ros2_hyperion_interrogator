@@ -154,7 +154,8 @@ class PeakStreamer(HyperionPublisher):
             
             # parse in FBG msgs
             peaks = self.unpack_fbg_msg(msg)
-            
+            self.get_logger().debug(f"Counter: {counter}, Recalibration Peaks: {peaks}")
+            self.get_logger().debug(f"Data: {data}")
             for ch_num, ch_peaks in peaks.items():
                 if ch_num not in data.keys():
                     data[ch_num] = ch_peaks
@@ -162,14 +163,15 @@ class PeakStreamer(HyperionPublisher):
                 else:
                     data[ch_num] += ch_peaks
                     
-                # increment counter
-                counter += 1 
             # for
+            
+            # increment counter
+            counter += 1 
             
         # update_data
         
         # temporary subscriber node to raw data
-        tmp_node = Node('tmp/signal_subscriber')
+        tmp_node = Node('TempSignalSubscriber')
         tmp_sub = tmp_node.create_subscription(Float64MultiArray, self.signal_pubs['all']['raw'].topic_name, 
                                                update_data, 10)
         
@@ -205,7 +207,7 @@ class PeakStreamer(HyperionPublisher):
         self.streamer.stop_streaming() # stop the current interrogator
         self.streamer.stream_active = False
         self.streamer_loop.stop()
-        self.get_logger().info("Waiting for the loop to close.")
+        self.get_logger().info("Waiting for the loop to stop running.")
         while self.streamer_loop.is_running():
             pass
         
