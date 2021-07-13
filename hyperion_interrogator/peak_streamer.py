@@ -6,13 +6,15 @@ from std_msgs.msg import Bool, Float64MultiArray, MultiArrayDimension
 from std_srvs.srv import Trigger
 from rcl_interfaces.msg import SetParametersResult
 
+import sys
 import asyncio
 import numpy as np
 import threading
-import sys
+import multiprocessing
 
 from .hyperionlib.hyperion import Hyperion, HCommTCPPeaksStreamer
 from .hyperion_talker import HyperionPublisher
+
 
 class PeakStreamer(HyperionPublisher):
     # PARAMETER NAMES
@@ -23,10 +25,12 @@ class PeakStreamer(HyperionPublisher):
         
         # reinstantiate a new timer for publishing connectivity
         self.timer.cancel() # remove the timed publishing 
+        self.destroy_timer(self.timer)
         timer_period = 0.5
-        
         self.timer = self.create_timer(timer_period, self.connection_publisher)
-        self.get_logger().info("Created new timer")
+        
+        # remove reconnect service (Not Implemented yet)
+        self.destroy_service(self.reconnect_srv)
         
 
     # __init__
@@ -34,25 +38,29 @@ class PeakStreamer(HyperionPublisher):
     def connect_streamer(self) -> bool:
         ''' Connect to hyperion interrogator and initialize peak streamer OVERRIDE'''
         # initialize the peak steramer
+        original_loop = asyncio.get_event_loop()
         self.streamer_loop = asyncio.get_event_loop()
-        self.streamer_queue = asyncio.Queue(maxsize=5)
+        asyncio.set_event_loop(self.streamer_loop)
+        self.streamer_queue = asyncio.Queue(maxsize=5, loop=self.streamer_loop)
         self.streamer = HCommTCPPeaksStreamer(self.ip_address, self.streamer_loop, self.streamer_queue)
-        
-        self.streamer_loop.create_task( self.publish_peaks_stream() )
+        self.streamer.stream_active = True
         
         def loop_in_thread(self, loop):
             asyncio.set_event_loop(loop)
-            self.streamer_loop.run_until_complete( self.streamer.stream_data() )
-            print("Thread terminated.")
-        
+            loop.create_task( self.streamer.stream_data() )
+            loop.create_task( self.publish_peaks_stream() )
+            # loop.run_until_complete( self.publish_peaks_stream() )
+            loop.run_forever()
+            self.get_logger().info("Publishing peaks thread has terminated.")
+            
         # loop_in_thread
         
+        # create thread to publish 
         self._pubthread = threading.Thread(target=loop_in_thread, args=(self, self.streamer_loop,))
         self._pubthread.start()
         
-        # asyncio.set_event_loop(asyncio.new_event_loop())
+        asyncio.set_event_loop(original_loop)
         
-        self.get_logger().info("After streamer_loop")
         return True
     
     # connect_streamer
@@ -65,16 +73,22 @@ class PeakStreamer(HyperionPublisher):
     
     def destroy_node(self):
         ''' Destroy the node '''
-        self.get_logger().info("Stopping Streaming...")
-        self.streamer.stop_streaming()
-        self.get_logger().info("Streaming Stopped. Destroying node...")
+        self.get_logger().info("Stopping streaming...")
+        self.streamer.stop_streaming() # stop the current interrogator
+        self.streamer.stream_active = False
+        self.streamer_loop.stop()
+        self.get_logger().info("Waiting for the loop to close.")
+        while self.streamer_loop.is_running():
+            pass
+        
         super().destroy_node()
-        self.get_logger().info("Node destroyed.")
+        self.get_logger().info("Streaming stopped. Node destroyed.")
         
     # destroy_node
     
     async def publish_peaks_stream(self):
-        while rclpy.ok():
+        self.get_logger().info("Started publishing peaks.")
+        while rclpy.ok() and self.streamer.stream_active:
             # grab the peak data
             self.get_logger().debug("Streaming Peaks")
             peak_data = await self.streamer_queue.get()
@@ -119,9 +133,7 @@ class PeakStreamer(HyperionPublisher):
             self.get_logger().debug("Published peaks.")
             
         # while
-        
-        self.streamer.stop_streaming()
-        self.streamer.stream_active = False # stop the streaming
+        self.get_logger().info("Peak publishing terminated.")
     # publish_peaks_stream
     
     def ref_wl_service(self, request, response):
@@ -190,10 +202,14 @@ class PeakStreamer(HyperionPublisher):
     
     def reconnect_service(self, request, response):
         ''' Reconnect to the IP address '''
-        self.get_logger().info("Beginning reconnect service...")
-        response = super().reconnect_service(request, response)
-        self.get_logger().info("After super's reconnect service...")
         self.streamer.stop_streaming() # stop the current interrogator
+        self.streamer.stream_active = False
+        self.streamer_loop.stop()
+        self.get_logger().info("Waiting for the loop to close.")
+        while self.streamer_loop.is_running():
+            pass
+        
+        response = super().reconnect_service(request, response)
         self.connect_streamer()
                 
         return response

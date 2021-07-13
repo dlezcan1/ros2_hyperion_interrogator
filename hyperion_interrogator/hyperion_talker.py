@@ -335,7 +335,7 @@ class HyperionPublisher(Node):
                 
             # idx
             
-            self.get_logger().info('Publishing raw and processed signals.')
+            self.get_logger().info('Publishing signals.')
             
         # if
         
