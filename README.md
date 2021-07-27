@@ -2,7 +2,7 @@
 Interrogator for FBG Interrogator Hyperion x55
 
 ## Nodes
-There are three different nodes here.
+There are three different nodes here for the interrogator and nodes for calling the interrogator services.
 
 ### `hyperion_talker`
 The default interrogator to interface with the six55 Hyperion interrogators. This has slow peak streaming, but is stable.
@@ -55,6 +55,16 @@ Same as `hyperion_talker`.
 
 #### Services
 Same as `hyperion_talker`.
+
+### `reconnect`
+Reconnects the interrogator by trigginering the interrogators /interrogator/reconnect service. Trigger the reconnect by
+
+``ros2 run hyperion_interrogator reconnect --ros-args -r __ns:=/needle``
+
+### `calibrate_sensors`
+Triggers the interrogator to calibrate the sensors by collecting the parameter's number of samples. Trigger the calibraiton by
+
+``ros2 run hyperion_interrogator calibrate_sensors --ros-args -r __ns:=/needle``
 
 ## Launch
 ### Demo Node
