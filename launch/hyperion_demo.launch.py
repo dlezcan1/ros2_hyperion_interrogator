@@ -18,6 +18,8 @@ def generate_launch_description():
                         package='hyperion_interrogator',
                         namespace='needle',
                         executable='hyperion_demo',
+                        output='screen',
+                        emulate_tty=True,
                         parameters=[{
                                     "interrogator.ip_address": LaunchConfiguration('ip'),
                                     "demo.num_channels": LaunchConfiguration("numCH"),
