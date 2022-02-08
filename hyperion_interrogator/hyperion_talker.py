@@ -236,10 +236,13 @@ class HyperionPublisher( Node ):
 
             # publish the entire signal
             self.signal_pubs[ 'all' ][ 'raw' ].publish( raw_tot_msg )
-            self.get_logger().info( "Published raw peak values: {}".format( raw_tot_msg.data ) )
+            self.get_logger().debug( "Published raw peak values: {}".format( raw_tot_msg.data ) )
 
-            self.signal_pubs[ 'all' ][ 'processed' ].publish( proc_tot_msg )
-            self.get_logger().info( "Published processed peak values: {}".format( proc_tot_msg.data ) )
+            if len(proc_tot_msg.data) > 0:
+                self.signal_pubs[ 'all' ][ 'processed' ].publish( proc_tot_msg )
+                self.get_logger().debug( "Published processed peak values: {}".format( proc_tot_msg.data ) )
+
+            # if
 
         # if
 

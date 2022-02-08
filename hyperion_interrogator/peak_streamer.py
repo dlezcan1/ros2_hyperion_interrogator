@@ -119,19 +119,23 @@ class PeakStreamer( HyperionPublisher ):
                 # processed signals
                 if ch_num in proc_peaks.keys():
                     proc_msg = proc_ch_msgs[ ch_num ]
-                    proc_pub = self.signal_pubs[ ch_num ][ 'processed' ]
-                    proc_pub.publish( proc_msg )
+                    if len(proc_msg.data) > 0:
+                        proc_pub = self.signal_pubs[ ch_num ][ 'processed' ]
+                        proc_pub.publish( proc_msg )
 
+                    # if
                 # if
 
             # for
 
             # publish the entire signal
             self.signal_pubs[ 'all' ][ 'raw' ].publish( raw_tot_msg )
-            self.get_logger().info( "Published raw peak values: {}".format( raw_tot_msg.data ) )
+            self.get_logger().debug( "Published raw peak values: {}".format( raw_tot_msg.data ) )
 
-            self.signal_pubs[ 'all' ][ 'processed' ].publish( proc_tot_msg )
-            self.get_logger().info( "Published processed peak values: {}".format( proc_tot_msg.data ) )
+            if len(proc_tot_msg.data) > 0:
+                self.signal_pubs[ 'all' ][ 'processed' ].publish( proc_tot_msg )
+                self.get_logger().debug( "Published processed peak values: {}".format( proc_tot_msg.data ) )
+            # if
 
         # while
 
