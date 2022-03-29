@@ -97,7 +97,7 @@ class HyperionPublisher( Node ):
             # if
 
             elif param.name == HyperionPublisher.param_names[ 'num_samples' ]:
-                self.ref_wavelengths = param.get_parameter_value().integer_value
+                self.num_samples = param.get_parameter_value().integer_value
 
             # elif
 
