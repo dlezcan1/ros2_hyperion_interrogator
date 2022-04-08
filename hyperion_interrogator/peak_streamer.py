@@ -97,7 +97,7 @@ class PeakStreamer( HyperionPublisher ):
             self.get_logger().debug( "Parsing Peaks..." )
             peaks = self.parse_peaks( peak_data[ 'data' ] )
             self.get_logger().debug( "Parsed peaks. Processing signals..." )
-            all_peaks = self.process_signals( peaks )
+            all_peaks = self.process_signals( peaks, temp_comp=False )
             self.get_logger().debug( "Processed peaks." )
 
             # split the peaks into raw and processed signals
