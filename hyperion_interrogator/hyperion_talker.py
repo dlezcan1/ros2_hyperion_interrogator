@@ -206,7 +206,7 @@ class HyperionPublisher( Node ):
 
         if self.is_connected and self.interrogator.is_ready:
             peaks = self.parse_peaks( self.interrogator.peaks )
-            all_peaks = self.process_signals( peaks )  # perform processing
+            all_peaks = self.process_signals( peaks, temp_comp=False )  # perform processing
 
             # split the peaks into raw and processed signals
             raw_peaks = dict( (ch_num, all_peaks[ ch_num ][ 'raw' ]) for ch_num in all_peaks.keys() )
