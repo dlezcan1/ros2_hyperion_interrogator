@@ -8,12 +8,14 @@ def generate_launch_description():
     ld = LaunchDescription()
 
     # arguments
-    hyperion_ip_arg = DeclareLaunchArgument( 'ip',
-                                             default_value='10.0.0.55'
-                                             )
-    num_samples_arg = DeclareLaunchArgument( 'numSamples',
-                                             default_value='200'
-                                             )
+    hyperion_ip_arg = DeclareLaunchArgument(
+        'ip',
+        default_value='10.0.0.55'
+        )
+    num_samples_arg = DeclareLaunchArgument(
+        'numSamples',
+        default_value='200'
+        )
     demo_num_chs_arg = DeclareLaunchArgument( 'numCH', default_value="3" )
     demo_num_aa_arg = DeclareLaunchArgument( 'numAA', default_value="4" )
 
@@ -26,11 +28,11 @@ def generate_launch_description():
             emulate_tty=True,
             parameters=[ {
                     "interrogator.ip_address": LaunchConfiguration( 'ip' ),
-                    "sensor.num_samples": LaunchConfiguration( 'numSamples' ),
+                    "sensor.num_samples"     : LaunchConfiguration( 'numSamples' ),
                     "demo.num_channels"      : LaunchConfiguration( "numCH" ),
                     "demo.num_active_areas"  : LaunchConfiguration( "numAA" ),
-                    } ]
-            )
+            } ]
+    )
     # add to launch description
     ld.add_action( hyperion_ip_arg )
     ld.add_action( num_samples_arg )

@@ -1,6 +1,10 @@
 from socket import gaierror  # for connection error
 
+import os
+from collections import defaultdict
+
 import numpy as np
+
 import rclpy
 from rcl_interfaces.msg import SetParametersResult
 from rclpy.node import Node
@@ -9,14 +13,24 @@ from std_srvs.srv import Trigger
 
 from .hyperionlib.hyperion import Hyperion
 
+from needle_shape_sensing.shape_sensing import ShapeSensingFBGNeedle
+
 
 class HyperionPublisher( Node ):
     # PARAMETER NAMES
     param_names = {
             'ip'         : 'interrogator.ip_address',
             'ref_wl'     : 'sensor.CH{:d}.reference',
-            'num_samples': 'sensor.num_samples'
-            }
+            'num_samples': 'sensor.num_samples',
+            'fbg_needle' : 'fbg_needle.path',
+    }
+
+    CH_REMAPS = {
+            1: 1,
+            2: 2,
+            3: 3,
+            4: 4,
+    }
 
     def __init__( self, name="Hyperion" ):
         super().__init__( name )
@@ -33,9 +47,13 @@ class HyperionPublisher( Node ):
         self.calibrate_srv = None
         self.interrogator = None
 
+        self.fbgneedle_path = None
+        self.fbgneedle    = None
+
         # Hyperion parameters
         self.declare_parameter( HyperionPublisher.param_names[ 'ip' ], self.ip_address )
         self.declare_parameter( HyperionPublisher.param_names[ 'num_samples' ], self.num_samples )
+        self.declare_parameter( HyperionPublisher.param_names['fbg_needle'], '' )
         self.get_params()
         self.add_on_set_parameters_callback( self.parameter_callback )  # update parameters
 
@@ -86,7 +104,64 @@ class HyperionPublisher( Node ):
         self.num_samples = self.get_parameter(
                 HyperionPublisher.param_names[ 'num_samples' ] ).get_parameter_value().integer_value
 
+        fbgneedle_path = self.get_parameter(
+                HyperionPublisher.param_names[ 'fbg_needle' ]
+        ).get_parameter_value().string_value
+
+        self.load_fbgneedle( fbgneedle_path )
+
+
     # get_params
+
+    def load_fbgneedle(self, fbgneedle_path=None):
+        """ Loads the FBG needle into the class """
+        # handle initialization issues with None fbgneedle paths
+        if fbgneedle_path is None:
+            fbgneedle_path = self.fbgneedle_path
+
+        elif self.fbgneedle_path is not None:
+            self.fbgneedle_path = fbgneedle_path
+
+        try:
+            if os.path.isfile( fbgneedle_path ):
+                self.fbgneedle = ShapeSensingFBGNeedle.load_json( self.fbgneedle_path )
+                self.fbgneedle_path = fbgneedle_path
+            # if
+
+        # try
+        except Exception as e:
+            self.get_logger().warn( str( e ) )
+
+        # except
+
+        if self.fbgneedle is None:
+            return
+
+        # if
+
+        if np.any( self.fbgneedle.ref_wavelengths < 0 ):
+            return
+
+        # if
+
+        self.ref_wavelengths = defaultdict( list )
+        ch_assignments = self.fbgneedle.assignments_ch()
+
+        for i, ch_assmt in enumerate( ch_assignments ):
+            self.ref_wavelengths[ self.CH_REMAPS[ ch_assmt ] ].append(
+                    self.fbgneedle.ref_wavelengths[ i ]
+            )
+
+        # for
+
+        self.ref_wavelengths = dict( self.ref_wavelengths )
+        self.get_logger().info( f"Loaded FBG Needle: {str( self.fbgneedle )}" )
+        for ch, peaks in self.ref_wavelengths.items():
+            self.get_logger().info( f"Reference wavelengths for CH{ch}: {peaks}" )
+
+        # for
+
+    # load_fbgneedle
 
     def parameter_callback( self, params ):
         """ Parameter update call back function"""
@@ -316,6 +391,9 @@ class HyperionPublisher( Node ):
                 self.ref_wavelengths[ ch_num ] = agg_peaks / self.num_samples
             # for
 
+            # update the FBG needle
+            self.update_fbgneedle()
+
             response.success = True
             self.get_logger().info( "Recalibration successful" )
             self.get_logger().info( "Reference wavelengths: {}".format( list( self.ref_wavelengths.values() ) ) )
@@ -386,6 +464,30 @@ class HyperionPublisher( Node ):
         return ret_val
 
     # unpack_fbg_msg
+
+    def update_fbgneedle( self ):
+        """ Update the FBG needle path """
+        if self.fbgneedle is None:
+            return
+
+        # if
+
+        self.fbgneedle.ref_wavelengths = np.hstack(
+                peaks for ch, peaks in sorted(self.ref_wavelengths.items(), key=lambda x: x[0])
+        )
+
+        fbgneedle_outpath = (
+                self.fbgneedle_path
+                if self.fbgneedle_path.endswith( "-ref-wavelength-latest.json" ) else
+                self.fbgneedle_path.replace( ".json", "-ref-wavelength-latest.json" )
+        )
+
+        self.fbgneedle.save_json( fbgneedle_outpath )
+        self.get_logger().info(
+            f"Saved FBG needle param file w/ updated reference wavelengths to: {fbgneedle_outpath}"
+        )
+
+    # update_fbgneedle
 
 
 # class: HyperionPublisher
