@@ -60,7 +60,7 @@ def generate_launch_description():
     )
 
     # FBG Interrogator
-    ld_fbg_interrogator_sync = IncludeLaunchDescription(  # real sync FBG interrogator
+    ld_interrogator_sync = IncludeLaunchDescription(  # real sync FBG interrogator
             PythonLaunchDescriptionSource(
                     PathJoinSubstitution( [ pkg_fbg_interrogator, 'hyperion_talker.launch.py' ] )
             ),
@@ -80,7 +80,7 @@ def generate_launch_description():
                     'needleParamFile': LaunchConfiguration( 'needleParamFile' )
             }.items()
     )
-    ld_fbg_interrogator_sync = IncludeLaunchDescription(  # real async FBG interrogator
+    ld_interrogator_async = IncludeLaunchDescription(  # real async FBG interrogator
             PythonLaunchDescriptionSource(
                     PathJoinSubstitution( [ pkg_fbg_interrogator, 'hyperion_streamer.launch.py' ] )
             ),
@@ -89,7 +89,7 @@ def generate_launch_description():
                             [
                                     "'", interrogator_sim_level_arg, "' == '2'",
                                     " and ",
-                                    "'", interrogator_stream_arg, "' != 'true'"
+                                    "'", interrogator_stream_arg, "' == 'true'"
 
                             ]
                     )
@@ -114,8 +114,8 @@ def generate_launch_description():
     ld.add_action( demo_num_aas_arg )
 
     ld.add_action( ld_demo_interrogator )
-    ld.add_action( ld_fbg_interrogator_sync )
-    ld.add_action( ld_fbg_interrogator_async )
+    ld.add_action( ld_interrogator_sync )
+    ld.add_action( ld_interrogator_async )
 
     return ld
 

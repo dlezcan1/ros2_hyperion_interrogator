@@ -48,12 +48,12 @@ class HyperionPublisher( Node ):
         self.interrogator = None
 
         self.fbgneedle_path = None
-        self.fbgneedle    = None
+        self.fbgneedle = None
 
         # Hyperion parameters
         self.declare_parameter( HyperionPublisher.param_names[ 'ip' ], self.ip_address )
         self.declare_parameter( HyperionPublisher.param_names[ 'num_samples' ], self.num_samples )
-        self.declare_parameter( HyperionPublisher.param_names['fbg_needle'], '' )
+        self.declare_parameter( HyperionPublisher.param_names[ 'fbg_needle' ], '' )
         self.get_params()
         self.add_on_set_parameters_callback( self.parameter_callback )  # update parameters
 
@@ -102,7 +102,8 @@ class HyperionPublisher( Node ):
         self.ip_address = self.get_parameter( HyperionPublisher.param_names[ 'ip' ] ).get_parameter_value().string_value
 
         self.num_samples = self.get_parameter(
-                HyperionPublisher.param_names[ 'num_samples' ] ).get_parameter_value().integer_value
+                HyperionPublisher.param_names[ 'num_samples' ]
+        ).get_parameter_value().integer_value
 
         fbgneedle_path = self.get_parameter(
                 HyperionPublisher.param_names[ 'fbg_needle' ]
@@ -110,10 +111,9 @@ class HyperionPublisher( Node ):
 
         self.load_fbgneedle( fbgneedle_path )
 
-
     # get_params
 
-    def load_fbgneedle(self, fbgneedle_path=None):
+    def load_fbgneedle( self, fbgneedle_path=None ):
         """ Loads the FBG needle into the class """
         # handle initialization issues with None fbgneedle paths
         if fbgneedle_path is None:
@@ -208,9 +208,13 @@ class HyperionPublisher( Node ):
         for ch_num, peaks in parsed_peaks.items():
             # prepare the individual channel msg
             ch_msg = Float64MultiArray()
-            ch_msg.layout.dim.append( MultiArrayDimension( label=f"CH{ch_num}",
-                                                           stride=peaks.dtype.itemsize,
-                                                           size=peaks.size * peaks.dtype.itemsize ) )
+            ch_msg.layout.dim.append(
+                MultiArrayDimension(
+                    label=f"CH{ch_num}",
+                    stride=peaks.dtype.itemsize,
+                    size=peaks.size * peaks.dtype.itemsize
+                    )
+                )
             ch_msg.data = peaks.flatten().tolist()
 
             channel_msgs[ ch_num ] = ch_msg
@@ -313,7 +317,7 @@ class HyperionPublisher( Node ):
             self.signal_pubs[ 'all' ][ 'raw' ].publish( raw_tot_msg )
             self.get_logger().debug( "Published raw peak values: {}".format( raw_tot_msg.data ) )
 
-            if len(proc_tot_msg.data) > 0:
+            if len( proc_tot_msg.data ) > 0:
                 self.signal_pubs[ 'all' ][ 'processed' ].publish( proc_tot_msg )
                 self.get_logger().debug( "Published processed peak values: {}".format( proc_tot_msg.data ) )
 
@@ -414,8 +418,10 @@ class HyperionPublisher( Node ):
 
         # connected publisher
         self.connected_pub = self.create_publisher( Bool, 'interrogator/connected', 10 )
-        self.signal_pubs[ 'all' ] = { 'raw'      : self.create_publisher( Float64MultiArray, 'sensor/raw', 10 ),
-                                      'processed': self.create_publisher( Float64MultiArray, 'sensor/processed', 10 ) }
+        self.signal_pubs[ 'all' ] = {
+                'raw'      : self.create_publisher( Float64MultiArray, 'sensor/raw', 10 ),
+                'processed': self.create_publisher( Float64MultiArray, 'sensor/processed', 10 )
+        }
         if self.is_connected:
             topic_raw = 'sensor/CH{:d}/raw'
             topic_proc = 'sensor/CH{:d}/processed'
@@ -473,7 +479,7 @@ class HyperionPublisher( Node ):
         # if
 
         self.fbgneedle.ref_wavelengths = np.hstack(
-                peaks for ch, peaks in sorted(self.ref_wavelengths.items(), key=lambda x: x[0])
+                peaks for ch, peaks in sorted( self.ref_wavelengths.items(), key=lambda x: x[ 0 ] )
         )
 
         fbgneedle_outpath = (
@@ -484,7 +490,7 @@ class HyperionPublisher( Node ):
 
         self.fbgneedle.save_json( fbgneedle_outpath )
         self.get_logger().info(
-            f"Saved FBG needle param file w/ updated reference wavelengths to: {fbgneedle_outpath}"
+                f"Saved FBG needle param file w/ updated reference wavelengths to: {fbgneedle_outpath}"
         )
 
     # update_fbgneedle

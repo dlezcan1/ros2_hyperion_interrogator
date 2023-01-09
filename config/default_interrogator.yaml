@@ -1,4 +1,48 @@
-HyperionPublisher:
+Hyperion:
+  ros__parameters:
+    interrogator:
+      ip_address: "10.0.0.55"
+    sensor:
+      num_samples: 200
+
+PeakStreamer:
+  ros__parameters:
+    interrogator:
+      ip_address: "10.0.0.55"
+    sensor:
+      num_samples: 200
+
+HyperionDemo:
+  ros__parameters:
+    interrogator:
+      ip_address: "10.0.0.55"
+    sensor:
+      num_samples: 200
+    demo:
+      num_channels: 3
+      num_active_areas: 4
+
+needle:
+  Hyperion:
     ros__parameters:
-        interrogator:
-		ip_address: 10.0.0.55
+      interrogator:
+        ip_address: "10.0.0.55"
+      sensor:
+        num_samples: 200
+
+  PeakStreamer:
+    ros__parameters:
+      interrogator:
+        ip_address: "10.0.0.55"
+      sensor:
+        num_samples: 200
+
+  HyperionDemo:
+    ros__parameters:
+      interrogator:
+        ip_address: "10.0.0.55"
+      sensor:
+        num_samples: 200
+      demo:
+        num_channels: 3
+        num_active_areas: 4
