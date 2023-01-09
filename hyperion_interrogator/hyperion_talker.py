@@ -384,9 +384,9 @@ class HyperionPublisher( Node ):
                         response.success = False
                         response.message = "Timeout interrogation occurred."
 
-                    # if
-                    continue
+                        return response
 
+                    # if
                 # except
             # while   
 
