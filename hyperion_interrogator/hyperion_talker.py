@@ -119,14 +119,14 @@ class HyperionPublisher( Node ):
         if fbgneedle_path is None:
             fbgneedle_path = self.fbgneedle_path
 
-        elif self.fbgneedle_path is not None:
-            self.fbgneedle_path = fbgneedle_path
-
         try:
             if os.path.isfile( fbgneedle_path ):
-                self.fbgneedle = ShapeSensingFBGNeedle.load_json( self.fbgneedle_path )
+                self.fbgneedle = ShapeSensingFBGNeedle.load_json( fbgneedle_path )
                 self.fbgneedle_path = fbgneedle_path
             # if
+
+            else:
+                self.get_logger().warn(f"'{self.fbgneedle_path}' is not a valid needle parameter JSON file. File does not exist!")
 
         # try
         except Exception as e:
@@ -139,6 +139,7 @@ class HyperionPublisher( Node ):
 
         # if
 
+        self.get_logger().info( f"Loaded FBG Needle: {str( self.fbgneedle )}" )
         if np.any( self.fbgneedle.ref_wavelengths < 0 ):
             return
 
@@ -155,7 +156,6 @@ class HyperionPublisher( Node ):
         # for
 
         self.ref_wavelengths = dict( self.ref_wavelengths )
-        self.get_logger().info( f"Loaded FBG Needle: {str( self.fbgneedle )}" )
         for ch, peaks in self.ref_wavelengths.items():
             self.get_logger().info( f"Reference wavelengths for CH{ch}: {peaks}" )
 
