@@ -194,6 +194,9 @@ class PeakStreamer( HyperionPublisher ):
 
         # for
 
+        # update the FBG needle
+        self.update_fbgneedle()
+
         response.success = True
         self.get_logger().info( "Recalibration successful" )
         self.get_logger().info( "Reference wavelengths: {}".format( list( self.ref_wavelengths.values() ) ) )
