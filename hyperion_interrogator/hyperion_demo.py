@@ -34,10 +34,11 @@ class HyperionDemo( HyperionPublisher ):
         self.num_chs = self.get_parameter( HyperionDemo.param_names[ 'num_chs' ] ).get_parameter_value().integer_value
         self.num_aa = self.get_parameter( HyperionDemo.param_names[ 'num_aa' ] ).get_parameter_value().integer_value
 
+        self.get_logger().info(f"Demo Interrogator config: CHs = {self.num_chs} | AAs = {self.num_aa}")
         # initialize reference wavelengths
         self.base_wavelengths = { }
         for i in range( 1, self.num_chs + 1 ):
-            self.base_wavelengths[ i ] = 1540 + 10 * np.arange( self.num_aa )
+            self.base_wavelengths[ i ] = 1540 + 10 * np.arange( self.num_aa ) + i
 
         # for
 
