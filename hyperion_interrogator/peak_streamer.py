@@ -1,18 +1,13 @@
 import rclpy
 from rclpy.node import Node
-from rclpy.exceptions import ParameterNotDeclaredException
 
-from std_msgs.msg import Bool, Float64MultiArray, MultiArrayDimension
+from std_msgs.msg import Bool, Float64MultiArray
 from std_srvs.srv import Trigger
-from rcl_interfaces.msg import SetParametersResult
 
-import sys
 import asyncio
-import numpy as np
 import threading
-import multiprocessing
 
-from .hyperionlib.hyperion import Hyperion, HCommTCPPeaksStreamer
+from .hyperionlib.hyperion import HCommTCPPeaksStreamer
 from .hyperion_talker import HyperionPublisher
 
 
