@@ -3,9 +3,15 @@ from socket import gaierror  # for connection error
 import os
 from collections import defaultdict
 
+from typing import (
+    Any,
+    Dict,
+)
+
 import numpy as np
 
 import rclpy
+import rclpy.publisher
 from rcl_interfaces.msg import SetParametersResult
 from rclpy.node import Node
 from std_msgs.msg import Bool, Float64MultiArray, MultiArrayDimension
@@ -36,19 +42,19 @@ class HyperionPublisher( Node ):
         super().__init__( name )
 
         # parameters
-        self.is_connected = False
-        self.ip_address = '10.0.0.55'
-        self.num_chs = 0
-        self.ref_wavelengths = { }
-        self.num_samples = 200
-        self.signal_pubs = { }
-        self.connected_pub = None
-        self.reconnect_srv = None
-        self.calibrate_srv = None
-        self.interrogator = None
+        self.is_connected    = False
+        self.ip_address      = '10.0.0.55'
+        self.num_chs         = 0
+        self.ref_wavelengths = dict()
+        self.num_samples     = 200
+        self.signal_pubs: Dict[Any, Dict[str, rclpy.publisher.Publisher]] = dict()
+        self.connected_pub   = None
+        self.reconnect_srv   = None
+        self.calibrate_srv   = None
+        self.interrogator    = None
 
-        self.fbgneedle_path = None
-        self.fbgneedle = None
+        self.fbgneedle_path  = None
+        self.fbgneedle       = None
 
         # Hyperion parameters
         self.declare_parameter( HyperionPublisher.param_names[ 'ip' ], self.ip_address )

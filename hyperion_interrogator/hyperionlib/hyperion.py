@@ -101,7 +101,7 @@ class HCommTCPClient(object):
 
         self.reader = None
         self.writer = None
-        self.loop = loop
+        self.loop = None
         self.read_buffer = bytearray()
 
     async def connect(self):
@@ -109,7 +109,7 @@ class HCommTCPClient(object):
         Open an asyncio connection to the instrument.
         :return:
         """
-        self.reader, self.writer = await asyncio.open_connection(self.address, self.port, loop = self.loop)
+        self.reader, self.writer = await asyncio.open_connection(self.address, self.port)
 
 
     async def read_data(self, data_length):

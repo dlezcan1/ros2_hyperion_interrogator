@@ -21,6 +21,15 @@ class PeakStreamer( HyperionPublisher ):
 
     def __init__( self, name="PeakStreamer" ):
         super().__init__( name )
+
+        self.streamer_loop : asyncio.AbstractEventLoop = None
+        self.streamer_queue: asyncio.Queue             = None
+        self.streamer      : HCommTCPPeaksStreamer     = None
+
+        self.task_spin        : asyncio.Task = None
+        self.task_pub         : asyncio.Task = None
+        self.task_stream_data : asyncio.Task = None
+
         self.connect_streamer()
 
         # reinstantiate a new timer for publishing connectivity
@@ -37,28 +46,14 @@ class PeakStreamer( HyperionPublisher ):
     def connect_streamer( self ) -> bool:
         ''' Connect to hyperion interrogator and initialize peak streamer OVERRIDE'''
         # initialize the peak steramer
-        original_loop = asyncio.get_event_loop()
-        self.streamer_loop = asyncio.get_event_loop()
-        asyncio.set_event_loop( self.streamer_loop )
-        self.streamer_queue = asyncio.Queue( maxsize=5, loop=self.streamer_loop )
-        self.streamer = HCommTCPPeaksStreamer( self.ip_address, self.streamer_loop, self.streamer_queue )
+        self.streamer_loop  = None
+        self.streamer_queue = asyncio.Queue( maxsize=5 )
+        self.streamer       = HCommTCPPeaksStreamer( 
+            address=self.ip_address, 
+            loop=self.streamer_loop, 
+            queue=self.streamer_queue,
+        )
         self.streamer.stream_active = True
-
-        def loop_in_thread( self, loop ):
-            asyncio.set_event_loop( loop )
-            loop.create_task( self.streamer.stream_data() )
-            loop.create_task( self.publish_peaks_stream() )
-            # loop.run_until_complete( self.publish_peaks_stream() )
-            loop.run_forever()
-            self.get_logger().info( "Publishing peaks thread has terminated." )
-
-        # loop_in_thread
-
-        # create thread to publish 
-        self._pubthread = threading.Thread( target=loop_in_thread, args=(self, self.streamer_loop,) )
-        self._pubthread.start()
-
-        asyncio.set_event_loop( original_loop )
 
         return True
 
@@ -104,10 +99,10 @@ class PeakStreamer( HyperionPublisher ):
             raw_peaks = dict( (ch_num, all_peaks[ ch_num ][ 'raw' ]) for ch_num in all_peaks.keys() )
 
             proc_ch_nums = [ ch for ch in all_peaks.keys() if 'processed' in all_peaks[ ch ].keys() ]
-            proc_peaks = dict( (ch, all_peaks[ ch ][ 'processed' ]) for ch in proc_ch_nums )
+            proc_peaks   = dict( (ch, all_peaks[ ch ][ 'processed' ]) for ch in proc_ch_nums )
 
             # prepare messages
-            raw_tot_msg, raw_ch_msgs = self.parsed_peaks_to_msg( raw_peaks )
+            raw_tot_msg,  raw_ch_msgs  = self.parsed_peaks_to_msg( raw_peaks )
             proc_tot_msg, proc_ch_msgs = self.parsed_peaks_to_msg( proc_peaks )
 
             for ch_num in all_peaks.keys():
@@ -118,7 +113,7 @@ class PeakStreamer( HyperionPublisher ):
 
                 # processed signals
                 if ch_num in proc_peaks.keys():
-                    proc_msg = proc_ch_msgs[ ch_num ]
+                    proc_msg: Float64MultiArray = proc_ch_msgs[ ch_num ]
                     if len(proc_msg.data) > 0:
                         proc_pub = self.signal_pubs[ ch_num ][ 'processed' ]
                         proc_pub.publish( proc_msg )
@@ -143,13 +138,9 @@ class PeakStreamer( HyperionPublisher ):
 
     # publish_peaks_stream
 
-    def ref_wl_service( self, request, response ):
-        ''' Service to get the reference wavelength OVERRIDE
-
-            TODO:
-                - include timeout (5 seconds)
-
-        '''
+    def ref_wl_service( self, request: Trigger.Request, response: Trigger.Response ):
+        ''' Service to get the reference wavelength OVERRIDE '''
+        TIMEOUT = 5 # (seconds)
         self.get_logger().info( f"Starting to recalibrate the sensors wavelengths for {self.num_samples} samples." )
 
         # initialize data container
@@ -179,14 +170,33 @@ class PeakStreamer( HyperionPublisher ):
 
         # temporary subscriber node to raw data
         tmp_node = Node( 'TempSignalSubscriber' )
-        tmp_sub = tmp_node.create_subscription( Float64MultiArray, self.signal_pubs[ 'all' ][ 'raw' ].topic_name,
-                                                update_data, 10 )
+        tmp_sub = tmp_node.create_subscription( 
+            Float64MultiArray, 
+            self.signal_pubs[ 'all' ][ 'raw' ].topic_name,
+            update_data, 
+            10,
+        )
 
         # Wait to gather 200 signals
-        while counter < self.num_samples:
+        t0 = self.get_clock().now().nanoseconds
+        dt = 0
+        while (
+            (counter < self.num_samples)
+            and (dt * 1e-9 < TIMEOUT)
+        ):
             rclpy.spin_once( tmp_node )
+            dt = t0 - self.get_clock().now().nanoseconds
 
         # while
+
+        if counter < self.num_samples: # failure
+            response.success = False
+            response.message = f"Calibration timed out. Received {counter} / {self.num_samples} required."
+            self.get_logger().error(f"Recalibration unsuccessful. Service timed out. Received {counter} / {self.num_samples} required.")
+
+            return response
+        
+        # if
 
         # normalize the data
         for ch_num, agg_peaks in data.items():
@@ -227,6 +237,57 @@ class PeakStreamer( HyperionPublisher ):
 
     # reconnect_service
 
+    async def spin(self):
+        cancel = self.create_guard_condition(lambda: None)
+        def _spin(node: Node, future: asyncio.Future, event_loop: asyncio.AbstractEventLoop):
+            while not future.cancelled():
+                rclpy.spin_once(node)
+
+            if not future.cancelled():
+                event_loop.call_soon_threadsafe(future.set_result, None)
+
+        # _spin
+
+        event_loop  = asyncio.get_event_loop()
+        spin_task   = event_loop.create_future()
+        spin_thread = threading.Thread(
+            target=_spin,
+            args=(self, spin_task, event_loop)
+        )
+        spin_thread.start()
+
+        try:
+            await spin_task
+
+        except asyncio.CancelledError:
+            cancel.trigger()
+
+        spin_thread.join()
+        self.destroy_guard_condition(cancel)
+
+    # spin
+
+    async def run(self):
+        self.task_spin        = asyncio.get_event_loop().create_task(self.spin())
+        self.task_pub         = asyncio.get_event_loop().create_task(self.publish_peaks_stream())
+        self.task_stream_data = asyncio.get_event_loop().create_task(self.streamer.stream_data())
+
+        tasks = [
+            self.task_spin,
+            self.task_pub,
+            self.task_stream_data,
+        ]
+        await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+
+        # cancel the rest of the tasks
+        for task in tasks:
+            if task.cancel():
+                await task
+
+        # for
+
+    # run
+
 
 # class: PeakStreamer
 
@@ -236,17 +297,18 @@ def main( args=None ):
     peak_streamer = PeakStreamer()
 
     try:
-        rclpy.spin( peak_streamer )
+        asyncio.get_event_loop().run_until_complete(peak_streamer.run())
 
-    except KeyboardInterrupt:
-        peak_streamer.streamer.stop_streaming()
+    except asyncio.CancelledError:
+        pass
 
-    # clean up
+    finally: # clean up
+        asyncio.get_event_loop().close()
 
     peak_streamer.get_logger().info( '{} shutting down...'.format( peak_streamer.get_name() ) )
     peak_streamer.destroy_node()
+
     rclpy.shutdown()
-    sys.exit()
 
 
 # main

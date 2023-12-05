@@ -52,10 +52,10 @@ def generate_launch_description():
             ),
             condition=conditions.LaunchConfigurationEquals( 'sim_level_interrogator', "1" ),
             launch_arguments={
-                    'ip'            : LaunchConfiguration( 'interrogatorIP' ),
-                    'numCH'         : LaunchConfiguration( 'numCH' ),
-                    'numAA'         : LaunchConfiguration( 'numAA' ),
-                    'paramFile'     : LaunchConfiguration( 'paramFile' ),
+                    'ip'        : LaunchConfiguration( 'interrogatorIP' ),
+                    'numCH'     : LaunchConfiguration( 'numCH' ),
+                    'numAA'     : LaunchConfiguration( 'numAA' ),
+                    'paramFile' : LaunchConfiguration( 'paramFile' ),
             }.items(),
     )
 
@@ -77,7 +77,7 @@ def generate_launch_description():
             launch_arguments={
                     'ip'             : LaunchConfiguration( 'interrogatorIP' ),
                     'paramFile'      : LaunchConfiguration( 'paramFile' ),
-                    'needleParamFile': LaunchConfiguration( 'needleParamFile' )
+                    'needleParamFile': LaunchConfiguration( 'needleParamFile' ),
             }.items()
     )
     ld_interrogator_async = IncludeLaunchDescription(  # real async FBG interrogator
@@ -97,7 +97,7 @@ def generate_launch_description():
             launch_arguments={
                     'ip'             : LaunchConfiguration( 'interrogatorIP' ),
                     'paramFile'      : LaunchConfiguration( 'paramFile' ),
-                    'needleParamFile': LaunchConfiguration( 'needleParamFile' )
+                    'needleParamFile': LaunchConfiguration( 'needleParamFile' ),
             }.items()
     )
 
