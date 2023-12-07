@@ -402,7 +402,7 @@ class HACQSensorData(object):
         header_length = 24
         self.header = HACQSensorData.SensorHeader(*unpack('HBBIQII', streaming_data[:header_length]))
 
-        self.data = np.frombuffer(streaming_data[self.header.header_length:], dtype=np.float)
+        self.data = np.frombuffer(streaming_data[self.header.header_length:], dtype=np.float64)
 
     @classmethod
     def data_parser(cls, streaming_data):
@@ -441,7 +441,7 @@ class HACQPeaksData(object):
 
         self.channel_boundaries = np.cumsum(self._peak_counts)
 
-        self.data = np.frombuffer(raw_data[self.header.length:], dtype=np.float)
+        self.data = np.frombuffer(raw_data[self.header.length:], dtype=np.float64)
 
         channel_start = 0
 
@@ -1149,7 +1149,7 @@ class Hyperion(object):
         """
         count_boundaries = np.asarray(self.convert_wavelengths_to_counts(wavelength_boundaries), dtype=np.int)
 
-        delays = delays or np.asarray(np.round(2*(np.array(distances, dtype=np.float) *
+        delays = delays or np.asarray(np.round(2*(np.array(distances, dtype=np.float64) *
                                       index_of_refraction/SPEED_OF_LIGHT * 1e9)), dtype=np.int)
 
         peak_offsets = HPeakOffsets(count_boundaries, delays)
@@ -1776,7 +1776,7 @@ class AsyncHyperion(object):
         """
         count_boundaries = np.asarray(self.convert_wavelengths_to_counts(wavelength_boundaries), dtype=np.int)
 
-        delays = delays or np.asarray(np.round(2 * (np.array(distances, dtype=np.float) *
+        delays = delays or np.asarray(np.round(2 * (np.array(distances, dtype=np.float64) *
                                                     index_of_refraction / SPEED_OF_LIGHT * 1e9)), dtype=np.int)
 
         peak_offsets = HPeakOffsets(count_boundaries, delays)

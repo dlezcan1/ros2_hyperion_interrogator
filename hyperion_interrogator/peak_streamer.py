@@ -65,10 +65,7 @@ class PeakStreamer( HyperionPublisher ):
         self.get_logger().info( "Stopping streaming..." )
         self.streamer.stop_streaming()  # stop the current interrogator
         self.streamer.stream_active = False
-        self.streamer_loop.stop()
         self.get_logger().info( "Waiting for the loop to close." )
-        while self.streamer_loop.is_running():
-            pass
 
         super().destroy_node()
         self.get_logger().info( "Streaming stopped. Node destroyed." )
