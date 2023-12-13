@@ -485,7 +485,7 @@ class HyperionPublisher( Node ):
         # if
 
         self.fbgneedle.ref_wavelengths = np.hstack(
-                peaks for ch, peaks in sorted( self.ref_wavelengths.items(), key=lambda x: x[ 0 ] )
+            [peaks for ch, peaks in sorted( self.ref_wavelengths.items(), key=lambda x: x[ 0 ] )]
         )
 
         fbgneedle_outpath = (
