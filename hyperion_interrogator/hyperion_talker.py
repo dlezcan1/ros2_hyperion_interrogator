@@ -119,14 +119,28 @@ class HyperionPublisher( Node ):
 
     # get_params
 
-    def load_fbgneedle( self, fbgneedle_path=None ):
+    def load_fbgneedle( self, fbgneedle_path: str = None ):
         """ Loads the FBG needle into the class """
         # handle initialization issues with None fbgneedle paths
         if fbgneedle_path is None:
             fbgneedle_path = self.fbgneedle_path
 
+        # load the latest FBG needle params calibrated
         try:
-            if os.path.isfile( fbgneedle_path ):
+            latest_fbgneedle_path = fbgneedle_path.replace(".json", "-ref-wavelength-latest.json")
+            if os.path.isfile( latest_fbgneedle_path ):
+                self.fbgneedle = ShapeSensingFBGNeedle.load_json( latest_fbgneedle_path )
+                self.fbgneedle_path = latest_fbgneedle_path
+
+        except Exception as e:
+            self.get_logger().warn( str( e ) )
+
+        # load the non-calibrated FBG params
+        try:
+            if self.fbgneedle is not None:
+                pass
+
+            elif os.path.isfile( fbgneedle_path ):
                 self.fbgneedle = ShapeSensingFBGNeedle.load_json( fbgneedle_path )
                 self.fbgneedle_path = fbgneedle_path
             # if
