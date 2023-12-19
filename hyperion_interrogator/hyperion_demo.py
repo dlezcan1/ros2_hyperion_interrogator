@@ -127,6 +127,8 @@ class HyperionDemo( HyperionPublisher ):
             for ch_num, agg_peaks in data.items():
                 self.ref_wavelengths[ ch_num ] = agg_peaks / self.num_samples
             # for
+                
+            self.update_fbgneedle()
 
             response.success = True
             self.get_logger().info( "Recalibration successful" )
