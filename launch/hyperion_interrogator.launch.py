@@ -16,6 +16,7 @@ def generate_launch_description():
     interrogator_sim_level_arg = DeclareLaunchArgument(
             'sim_level_interrogator',
             default_value="1",
+            choices=["1", "2"],
             description="Simulation level: 1 - FBG demo, 2 - real FBG sensors",
     )
     ros_paramfile_arg = DeclareLaunchArgument(
@@ -50,12 +51,12 @@ def generate_launch_description():
             PythonLaunchDescriptionSource(
                     PathJoinSubstitution( [ pkg_fbg_interrogator, 'hyperion_demo.launch.py' ] )
             ),
-            condition=conditions.LaunchConfigurationEquals( 'sim_level_interrogator', "1" ),
+            condition=conditions.LaunchConfigurationEquals( interrogator_sim_level_arg.name, "1" ),
             launch_arguments={
-                    'ip'        : LaunchConfiguration( 'interrogatorIP' ),
-                    'numCH'     : LaunchConfiguration( 'numCH' ),
-                    'numAA'     : LaunchConfiguration( 'numAA' ),
-                    'paramFile' : LaunchConfiguration( 'paramFile' ),
+                    'ip'        : LaunchConfiguration( interrogator_ip_arg.name ),
+                    'numCH'     : LaunchConfiguration( demo_num_chs_arg.name ),
+                    'numAA'     : LaunchConfiguration( demo_num_aas_arg.name ),
+                    'paramFile' : LaunchConfiguration( ros_paramfile_arg.name ),
             }.items(),
     )
 
@@ -67,17 +68,17 @@ def generate_launch_description():
             condition=conditions.IfCondition(
                     PythonExpression(
                             [
-                                    "'", interrogator_sim_level_arg, "' == '2'",
+                                    "'", LaunchConfiguration(interrogator_sim_level_arg.name), "' == '2'",
                                     " and ",
-                                    "'", interrogator_stream_arg, "' != 'true'"
+                                    "'", LaunchConfiguration(interrogator_stream_arg.name), "' != 'true'"
 
                             ]
                     )
             ),
             launch_arguments={
-                    'ip'             : LaunchConfiguration( 'interrogatorIP' ),
-                    'paramFile'      : LaunchConfiguration( 'paramFile' ),
-                    'needleParamFile': LaunchConfiguration( 'needleParamFile' ),
+                    'ip'             : LaunchConfiguration( interrogator_ip_arg.name ),
+                    'paramFile'      : LaunchConfiguration( ros_paramfile_arg.name ),
+                    'needleParamFile': LaunchConfiguration( needle_paramfile_arg.name ),
             }.items()
     )
     ld_interrogator_async = IncludeLaunchDescription(  # real async FBG interrogator
@@ -87,17 +88,17 @@ def generate_launch_description():
             condition=conditions.IfCondition(
                     PythonExpression(
                             [
-                                    "'", interrogator_sim_level_arg, "' == '2'",
+                                    "'", LaunchConfiguration(interrogator_sim_level_arg.name), "' == '2'",
                                     " and ",
-                                    "'", interrogator_stream_arg, "' == 'true'"
+                                    "'", LaunchConfiguration(interrogator_stream_arg.name), "' == 'true'"
 
                             ]
                     )
             ),
             launch_arguments={
-                    'ip'             : LaunchConfiguration( 'interrogatorIP' ),
-                    'paramFile'      : LaunchConfiguration( 'paramFile' ),
-                    'needleParamFile': LaunchConfiguration( 'needleParamFile' ),
+                    'ip'             : LaunchConfiguration( interrogator_ip_arg.name ),
+                    'paramFile'      : LaunchConfiguration( ros_paramfile_arg.name ),
+                    'needleParamFile': LaunchConfiguration( needle_paramfile_arg.name ),
             }.items()
     )
 
